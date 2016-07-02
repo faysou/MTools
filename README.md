@@ -19,6 +19,15 @@ The package also contains:
 * [License](#license)
 * [Versioning](#versioning)
 
+## Usage example
+
+You can find usage examples in
+[answer to "Once more on object orientation..." question](http://mathematica.stackexchange.com/questions/16869)
+on Mathematica Stack Exchange.
+
+
+## Installation
+
 ### Automatic installation
 
 To install the ClasslessObjects package evaluate:
@@ -31,16 +40,6 @@ Note that this will also install
 package, if you don't have it already installed.
 
 To load the MTools package evaluate: ``Needs["MTools`"]``.
-
-## Usage example
-
-You can find usage examples in
-[answer to "Once more on object orientation..." question](http://mathematica.stackexchange.com/questions/16869)
-on Mathematica Stack Exchange.
-
-
-
-## Installation
 
 ### Manual installation
 
