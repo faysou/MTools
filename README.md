@@ -25,6 +25,8 @@ You can find usage examples in
 [answer to "Once more on object orientation..." question](http://mathematica.stackexchange.com/questions/16869)
 on Mathematica Stack Exchange.
 
+More examples will be added in the MTools.nb notebook located in the MTools package.
+
 
 ## Installation
 
