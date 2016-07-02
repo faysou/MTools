@@ -11,6 +11,7 @@ The package also contains:
 
 * [Usage example](#usage-example)
 * [Installation](#installation)
+	* [Automatic installation](#automatic-installation)
     * [Manual installation](#manual-installation)
 * [Compatibility](#compatibility)
 * [Bugs and requests](#bugs-and-requests)
@@ -18,7 +19,18 @@ The package also contains:
 * [License](#license)
 * [Versioning](#versioning)
 
+### Automatic installation
 
+To install the ClasslessObjects package evaluate:
+```Mathematica
+Get["https://raw.githubusercontent.com/faysou/MTools/master/BootstrapInstall.m"]
+```
+
+Note that this will also install
+[ProjectInstaller](https://github.com/lshifr/ProjectInstaller)
+package, if you don't have it already installed.
+
+To load the MTools package evaluate: ``Needs["MTools`"]``.
 
 ## Usage example
 
@@ -32,8 +44,8 @@ on Mathematica Stack Exchange.
 
 ### Manual installation
 
-1. Download latest released
-   [MTools.zip](https://github.com/faysou/MTools/releases/download/v0.1.0/MTools.zip)
+1. Download the latest released
+   [MTools.zip](https://github.com/faysou/MTools/releases/download/0.1.0/MTools.zip)
    file.
 
 2. Extract downloaded `MTools.zip` to any directory which is on
@@ -72,6 +84,7 @@ This package is released under
 
 ### Attribution
 
+I used as template the README of the [ClasslessObjects](https://github.com/jkuczm/MathematicaClasslessObjects) project.
 
 
 ## Versioning
