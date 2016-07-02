@@ -1,6 +1,12 @@
 # MTools
 
-MTools contains .
+The main contribution of MTools is to allow object oriented programming in Mathematica in a very natural way .
+
+The package also contains:
+ - Generic classes for manipulating trees of objects and displaying them
+ - Automatic interface generation for displaying and editing objects
+ - Functions for doing asynchronous evaluation easily using parallel kernels (MSync)
+ - Tools for accessing Couchbase, serializing and deserializing objects.
 
 
 * [Usage example](#usage-example)
@@ -27,7 +33,7 @@ on Mathematica Stack Exchange.
 ### Manual installation
 
 1. Download latest released
-   [ClasslessObjects.zip](https://github.com/faysou/MTools/releases/download/v0.1.0/MTools.zip)
+   [MTools.zip](https://github.com/faysou/MTools/releases/download/v0.1.0/MTools.zip)
    file.
 
 2. Extract downloaded `MTools.zip` to any directory which is on
