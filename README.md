@@ -37,12 +37,12 @@ More examples will be added in the MTools.nb notebook located in the MTools pack
 
 ### Automatic installation
 
-To install the ClasslessObjects package evaluate:
+To install the MTools package evaluate:
 ```Mathematica
 Get["https://raw.githubusercontent.com/faysou/MTools/master/BootstrapInstall.m"]
 ```
 
-Note that this will also install
+Note that this will also install the
 [ProjectInstaller](https://github.com/lshifr/ProjectInstaller)
 package, if you don't have it already installed.
 
@@ -54,7 +54,7 @@ To load the MTools package evaluate: ``Needs["MTools`"]``.
    [MTools.zip](https://github.com/faysou/MTools/releases/download/0.1.0/MTools.zip)
    file.
 
-2. Extract downloaded `MTools.zip` to any directory which is on
+2. Extract the downloaded `MTools.zip` file to any directory which is on the
    Mathematica `$Path`, e.g. to one obtained by evaluating
    `FileNameJoin[{$UserBaseDirectory,"Applications"}]`.
 
@@ -69,7 +69,7 @@ This package requires Mathematica 10 and above, as it makes extensive use of Ass
 
 ## Bugs and requests
 
-If you find any bugs or have feature request please create an
+If you find any bugs or have feature requests please create an
 [issue on GitHub](https://github.com/faysou/MTools/issues).
 
 
