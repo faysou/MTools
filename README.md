@@ -3,7 +3,7 @@
 [![release v0.1.0](http://img.shields.io/badge/release-v0.1.0-blue.svg)](https://github.com/faysou/MTools/releases/latest)
 [![Semantic Versioning](https://img.shields.io/badge/SemVer-2.0-green.svg)](http://semver.org/spec/v2.0.0.html)
 [![license MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/faysou/MTools/blob/master/LICENSE)
-[![Mathematica 10.0](https://img.shields.io/badge/Mathematica-10-blue.svg)](#compatibility)
+[![Mathematica 10.0](https://img.shields.io/badge/Mathematica-10-green.svg)](#compatibility)
 
 The main contribution of MTools is to allow object oriented programming in Mathematica in a very natural way .
 
