@@ -8,14 +8,6 @@ BeginPackage["MTools`Utils`Couch`",
 ]
 (* Exported symbols added here with SymbolName::usage *)
 
-(*
-admin
-http://deltaedge.co.uk:8091/
-
-sql queries (launch launch-cbq-gui.bat on server)
-http://deltaedge.co.uk:8094/
-*)
-
 $DefaultCluster={};
 $DefaultBucket="";
 $DefaultPassword="";
