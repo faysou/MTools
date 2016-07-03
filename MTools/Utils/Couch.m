@@ -109,17 +109,6 @@ CouchConnect[opts:OptionsPattern[]]:=
 		]
 	];
 	
-(*Simple test
-InitJavaKernels[]
-
-LoadJavaClass["com.couchbase.client.java.CouchbaseCluster"];
-
-cluster={"http://deltaedge.co.uk"};
-bucket="fws";
-
-$Clusters[cluster]=CouchbaseCluster`create[cluster];
-$Clusters[cluster]@openBucket[bucket,"Lon"];*)
-	
 CouchDisconnect[OptionsPattern[CouchConnect]]:=
 	Module[{cluster},
 		
@@ -137,7 +126,6 @@ GetCouchId[prefix_:None]:=If[prefix===None,"",prefix~~":"]~~DateString[{"YearSho
 	
 (*http://docs.couchbase.com/sdk-api/couchbase-java-client-2.2.2/
 http://developer.couchbase.com/documentation/server/4.0/n1ql/index.html*)
-(*CouchQuery["Delete from fws o where o.ObjectType = \"ContractId\""]*)
 Options[CouchQuery] = Join[Options[CouchConnect],{"ParseResults"->True,"ParseErrors"->False,"ReturnJavaResult"->False,"AdhocQuery"->True}];
 CouchQuery[inputQuery_,opts:OptionsPattern[]]:=
 	Module[{result,resultIterator,bucket,errorIterator,mmResult=Association[],adhocQuery=OptionValue@"AdhocQuery"},
