@@ -50,11 +50,17 @@ System`$LogItFile = "log.txt";
 System`$LogItPattern = _;
 System`LogIt;
 System`$LogFiles;
-System`CloseLogFile;
+System`CloseLogFile
+
+MakeRef::usage = "MakeRef  "
+RefValue::usage = "RefValue  "
+RemoveObserver::usage = "RemoveObserver  "
+$Observers::usage = "$Observers  "
+Ref::usage = "Ref  "
+Observe::usage = "Observe  ";
 
 Begin["`Private`"]
 
-(*nameRule=((("Hold[")...))~~((__~~"`")...)~~Shortest[x__]~~(("$"~~__)...)~~((("_")...))~~((("]")...)) :> x;*)
 nameRule=((__~~"`")...)~~Shortest[x__]~~(("$"~~__)...)~~(("_")...) :> x;
 SetAttributes[GetSymbolName,HoldFirst];
 g:GetSymbolName[symbol_String]:= g = symbol;
@@ -930,6 +936,39 @@ System`LogIt[message_,opts:OptionsPattern[]]:=
 			output
 		]
 	];
+	
+	
+(*http://mathematica.stackexchange.com/q/47659/66*)
+ClearAll[withCodeAfter];
+SetAttributes[withCodeAfter,HoldRest];
+withCodeAfter[before_,after_]:=(after;before);
+
+ClearAll[Ref,$Observers,MakeRef,Observe,RemoveObserver];
+$Observers[_]={};
+
+SetAttributes[Ref,HoldAll];
+MakeRef[expr_]:=Module[{sym=expr},Ref[sym]];
+
+Ref/:RefValue[Ref[sym_]]:=sym;
+Ref/:Set[ref:Ref[sym_],new_]:=
+	withCodeAfter[
+		sym=new
+		,
+		Scan[
+			Function[obs,obs[ref,new]]
+			,
+			$Observers[ref]
+		]
+	];
+Ref/:Set[lhs_Symbol,rhs_Ref]:=
+	withCodeAfter[
+		OwnValues[lhs]=HoldPattern[lhs]:>rhs;
+		lhs
+		,
+		lhs/:Set[lhs,val_]:=(rhs=val)
+	];
+Ref/:Observe[ref_Ref,observer_]:=AppendTo[$Observers[ref],observer];
+Ref/:RemoveObserver[ref_Ref,observer_]:=$Observers[ref]=DeleteCases[$Observers[ref],observer];
 	
 End[]
 EndPackage[]

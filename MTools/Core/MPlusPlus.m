@@ -332,6 +332,7 @@ addSpecialRules[class_]:=
 		];
 		
 		(*so that when an object is returned as o for example, its main representation is returned*)
+		(*http://mathematica.stackexchange.com/a/73017/66*)
 		appendToUpValues[class,
 			HoldPattern[h_[a___,class[object_,___,specialRuleMainClass_],b___] /; cacheUnsameDot[h]] :> 
 				h[a,specialRuleMainClass[object],b]
