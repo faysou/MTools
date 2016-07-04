@@ -22,6 +22,7 @@ RoundAsIntegerPercent::usage = "RoundAsIntegerPercent  "
 RoundNDigits::usage = "RoundNDigits  "
 SignColor::usage = "SignColor  "
 OpenerTree::usage = "OpenerTree  "
+openerView::usage = "openerView  ";
 CustomInputField::usage = "CustomInputField  "
 GetCalendar::usage = "GetCalendar  "
 AssociationToJson::usage = "AssociationToJson  "
@@ -57,7 +58,7 @@ RefValue::usage = "RefValue  "
 RemoveObserver::usage = "RemoveObserver  "
 $Observers::usage = "$Observers  "
 Ref::usage = "Ref  "
-Observe::usage = "Observe  ";
+Observe::usage = "Observe  "
 
 Begin["`Private`"]
 
