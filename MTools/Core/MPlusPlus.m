@@ -332,7 +332,6 @@ addSpecialRules[class_]:=
 		];
 		
 		(*so that when an object is returned as o for example, its main representation is returned*)
-		(*http://mathematica.stackexchange.com/a/73017/66*)
 		appendToUpValues[class,
 			HoldPattern[h_[a___,class[object_,___,specialRuleMainClass_],b___] /; cacheUnsameDot[h]] :> 
 				h[a,specialRuleMainClass[object],b]
@@ -806,8 +805,8 @@ BaseClass.set[keys__,lastKey_,value_] := o[keys].set[lastKey,value];
 BaseClass /: BaseClass[object_Symbol,___].set[key_,value_] := object[key]=value; 
 SetField = #.set[#2,#3]&;
 
-BaseClass.initData[options_]:= 
-	Block[{class=o.type[],classOptionNames},
+BaseClass.initClassData[class_,options_]:=
+	Block[{classOptionNames},
 		
 		classOptionNames=ClassFields[class];
 		
@@ -815,6 +814,7 @@ BaseClass.initData[options_]:=
 			o.set[classOptionNames,OptionValue[class,options,#]& /@ classOptionNames]
 		]
     ];
+BaseClass.initData[options_]:= o.initClassData[o.type[],options];
 
 (*setItem and getItem can be oveloaded, and take a string as key*)
 Unprotect[Dot];
@@ -866,6 +866,8 @@ BaseClass.deleteStatic[field_]:= o.deleteStatic[o.type[],field];
 BaseClass.deleteStatic[class_,field_]:= DeleteHeldValue[$StaticAssociation[class],field];
 BaseClass.deleteAllStatic[]:= o.deleteAllStatic[o.type[]];
 BaseClass.deleteAllStatic[class_]:= (SetHeldValue[$StaticAssociation[class],Association[]];);
+
+BaseClass.getSuperClass[nth_:1]:= Supers[o.type[]] // Reverse // #[[Min[nth,Length@#]]]&;
 
 (*Functions for elements contained in fields*)
 BaseClass.apply[f_[{list___}]]:= o.f[list];
