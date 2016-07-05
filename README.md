@@ -26,9 +26,9 @@ The package also contains:
 
 ## Usage example
 
-You can find usage examples in
-[answer to "Once more on object orientation..." question](http://mathematica.stackexchange.com/a/119896/66)
-on Mathematica Stack Exchange and on the [Wolfram Community](http://community.wolfram.com/groups/-/m/t/880686?p_p_auth=e2EwS0fM) site.
+You can find usage examples on the [Wolfram Community](http://community.wolfram.com/groups/-/m/t/880686?p_p_auth=e2EwS0fM) site and
+in the [answer to "Once more on object orientation..." question](http://mathematica.stackexchange.com/a/119896/66)
+on Mathematica Stack Exchange.
 
 More examples will be added in the MTools.nb notebook located in the MTools package.
 
