@@ -21,6 +21,7 @@ iterate::usage = " ";
 superIterate::usage = " ";
 iterateAssociation::usage = " ";
 treeIterate::usage = " ";
+upIterate::usage = " ";
 createScheduledTask::usage = " ";
 runScheduledTask::usage = " ";
 deferredTask::usage = " ";
@@ -75,7 +76,7 @@ GenericClass=
 				{"Description"->"","InputField","Specs"->{String}},{"Type"->"","InputField","Specs"->String},"SelectedObject",
 				{"Color"->"LightBlue","InputField","Specs"->{String}},"Parent","ObjectSavedFields"->{},
 			   	"Journal"->Association[],"ScheduledTasks"->Association[],"Refs"->Association[],"DisplayedProperties"->{},"LocalSave"->False,
-			   	"ActionAssociation"->Association[]
+			   	"ActionAssociation"->Association[],"VisibleInTree"->True
 			}
 	];
 GenericClass.init[options_]:=
@@ -257,23 +258,6 @@ GenericClass.findObject[field_,value_,condition_:(True &)]:=
 		Missing[field]
 	];
 GenericClass.getRecursiveField[field_,operation_]:= o[field];
-GenericClass.createObjectFromAssociation[assoc_]:= 
-	Module[{objectType},
-		objectType=ToExpression[assoc["ObjectType"]];
-		New[objectType][Normal@assoc]
-	];
-GenericClass.getData[]:= o.data[];
-GenericClass.save[fileName_]:= 
-	(
-		(*save in wdx format*)
-		$SavedObjects = o.getData[];
-		Export[fileName,Compress@$SavedObjects]
-	);
-GenericClass.load[fileName_]:= 
-	(
-		$SavedObjects = Import[fileName] // Uncompress;
-		o.createObjectFromAssociation[$SavedObjects]
-	);
 (* ::Subsubsection:: *)
 (* ::Subsubsection:: *)
 (* 		GenericClass/Display Interface*)
@@ -527,6 +511,23 @@ GenericClass.moveDown[]:=
 (* ::Subsubsection:: *)
 (* ::Subsubsection:: *)
 (* 		GenericClass/DB/Save *)
+GenericClass.createObjectFromAssociation[assoc_]:= 
+	Module[{objectType},
+		objectType=ToExpression[assoc["ObjectType"]];
+		New[objectType][Normal@assoc]
+	];
+GenericClass.getData[]:= o.data[];
+GenericClass.save[fileName_]:= 
+	(
+		(*save in wdx format*)
+		$SavedObjects = o.getData[];
+		Export[fileName,Compress@$SavedObjects]
+	);
+GenericClass.load[fileName_]:= 
+	(
+		$SavedObjects = Import[fileName] // Uncompress;
+		o.createObjectFromAssociation[$SavedObjects]
+	);
 GenericClass.setLocalSave[value_]:= o.set["LocalSave",value]; 
 GenericClass.getIdFields[]:= {"ObjectType"};
 GenericClass.getSavedFields[fieldsField_:"ObjectSavedFields"]:= 
@@ -1341,36 +1342,6 @@ GenericGroup.sortBy[{property_,propertyType_},increasing_:True]:=
 		o.setComponentIds[];
 	];
 GenericGroup.getRecursiveField[field_,operation_]:= o.iterate[getRecursiveField[field,operation]] // operation;
-GenericGroup.createTree[allObjects_,setComponentIds_:True]:= 
-	(
-		Function[object,
-			If[SubClass[GenericGroup][object.type[]],
-				If[KeyExistsQ[allObjects,#],
-					object.appendComponent[allObjects[#],setComponentIds]
-				]& /@ object["ComponentIds"];
-			]
-		]/@allObjects;
-		
-		SelectFirst[allObjects,(!#.hasParent[])&]
-	);
-GenericGroup.createTreeFromAssociations[associations_,setComponentIds_:True]:=
-	Module[{objectId,allObjects},
-		
-		allObjects=Association[];
-		
-		Function[assoc,
-			objectId=assoc["Id"];
-			allObjects[objectId]=o.createObjectFromAssociation[assoc];
-		]/@associations;
-		
-		o.createTree[allObjects,setComponentIds]
-	];
-GenericGroup.getData[]:= o.iterate[getData[],"CarryTreeResult"->True] // Prepend[KeyDrop[o.data[],"Components"]]; 
-GenericGroup.load[fileName_]:= 
-	(
-		$SavedObjects = Import[fileName] // Uncompress;
-		o.createTreeFromAssociations[$SavedObjects]
-	);
 (* ::Subsubsection:: *)
 (* ::Subsubsection:: *)
 (* 		GenericGroup/Display *)
@@ -1383,9 +1354,9 @@ GenericGroup.treeExpand[propertiesType_,fgnTreeDepth_:"All",mainPortfolioName_:N
 			o.super.treeExpand[propertiesType]
 			,
 			If[fgnTreeDepth === "All" || o["Portfolio"] === mainPortfolioName,
-				o.iterate[treeExpand[propertiesType,fgnTreeDepth,mainPortfolioName]]
+				o.iterate[treeExpand[propertiesType,fgnTreeDepth,mainPortfolioName],"Condition"->(#["VisibleInTree"]&)]
 				,
-				o.iterate[treeExpand[propertiesType,fgnTreeDepth-1,mainPortfolioName]]
+				o.iterate[treeExpand[propertiesType,fgnTreeDepth-1,mainPortfolioName],"Condition"->(#["VisibleInTree"]&)]
 			]
 			,
 			o["DefaultOpenState"]
@@ -1536,6 +1507,36 @@ GenericGroup.getComponents[keepSpreads_:True]:=
 (* ::Subsubsection:: *)
 (* ::Subsubsection:: *)
 (* 		GenericGroup/DB/Save *)
+GenericGroup.createTree[allObjects_,setComponentIds_:True]:= 
+	(
+		Function[object,
+			If[SubClass[GenericGroup][object.type[]],
+				If[KeyExistsQ[allObjects,#],
+					object.appendComponent[allObjects[#],setComponentIds]
+				]& /@ object["ComponentIds"];
+			]
+		]/@allObjects;
+		
+		SelectFirst[allObjects,(!#.hasParent[])&]
+	);
+GenericGroup.createTreeFromAssociations[associations_,setComponentIds_:True]:=
+	Module[{objectId,allObjects},
+		
+		allObjects=Association[];
+		
+		Function[assoc,
+			objectId=assoc["Id"];
+			allObjects[objectId]=o.createObjectFromAssociation[assoc];
+		]/@associations;
+		
+		o.createTree[allObjects,setComponentIds]
+	];
+GenericGroup.getData[]:= o.iterate[getData[],"CarryTreeResult"->True] // Prepend[KeyDrop[o.data[],"Components"]]; 
+GenericGroup.load[fileName_]:= 
+	(
+		$SavedObjects = Import[fileName] // Uncompress;
+		o.createTreeFromAssociations[$SavedObjects]
+	);
 GenericGroup.setLocalSave[value_]:= o.superIterate[setLocalSave[value]];
 GenericGroup.setBackup[fieldsField_:"ObjectSavedFields"]:= o.superIterate[setBackup[fieldsField]];
 GenericGroup.isTreeModified[fieldsField_:"ObjectSavedFields"]:= 
