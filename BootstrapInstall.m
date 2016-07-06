@@ -5,7 +5,7 @@ Get["https://raw.githubusercontent.com/jkuczm/MathematicaBootstrapInstaller/v0.1
 
 BootstrapInstall[
 	"MTools",
-	"https://github.com/faysou/MTools/releases/download/0.1.1/MTools.zip",
+	"https://github.com/faysou/MTools/releases/download/0.1.2/MTools.zip",
 	"AdditionalFailureMessage" ->
 		Sequence[
 			"You can ",
