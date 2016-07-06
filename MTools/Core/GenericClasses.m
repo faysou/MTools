@@ -1660,6 +1660,7 @@ insertOrUpdate[connectionSettings_,updateInfo_,{"UpdateSavedDate",ids_}]:=
 		insertOk
 	];
 (* ::Subsubsection:: *)
+InitializeClass[GenericGroup];
 (* ::Subsection:: *)
 (* ::Subsection:: *)
 (* Data structures *)

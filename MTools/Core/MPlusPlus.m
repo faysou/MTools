@@ -72,6 +72,7 @@ EditNewObject::usage = "EditNewObject[class][params] allows to edit the optional
 GetInput::usage = "GetInput[prompt,valueNames,defaults,options] creates a prompt in order to input the parameter valueNames which default values.
 The Interface and InterfaceOrdering of the valueNames can be given as options.";
 InterpretSymbol::usage = "InterpretSymbol[object,options] displays object as interpretable user interface, ie. the user interface can be passed as arguments to other functions.";
+InterpretSymbolName::usage = "InterpretSymbolName[object] stores the name of an object when using InterpretSymbol.";
 UninterpretSymbol::usage = "UninterpretSymbol[object] converts back an interpretable object to its initial variable symbol.";
 DynamicObject::usage = "DynamicObject allows to refer to an object when definining the appearance of fields.";
 GetTrackedSymbols::usage = "GetTrackedSymbols[objectList] returns a rule delayed TrackedSymbols :> objectSymbols, with objectSymbols being the symbols
@@ -990,7 +991,7 @@ Interface[MyClass] = {{"Field1","PopupMenu","Specs"->{{2}}},{"Field2","InputFiel
 InterfaceOrdering[IbVanilla] ^= {"key1","key2"...}
 *)
 
-SetAttributes[{Interface,InterfaceOrdering},HoldFirst];
+SetAttributes[{Interface,InterfaceOrdering,InterpretSymbolName},HoldFirst];
 
 SetInterface[classContainer_,interface_,type_:"Class"] := StoreUpValue[classContainer,Interface,interface,type];
 GetInterface[classContainer_,type_:"Class"] := AccessUpValue[classContainer,Interface,type];
@@ -1222,8 +1223,7 @@ EditSymbol[object_,opts:OptionsPattern[]] :=
 Options[InterpretSymbol] = Join[{"InterpretSymbolValue"->None},Options@EditSymbolPane];
 SetOptions[InterpretSymbol,{"PaneSize"->{Automatic,150},"ForceSize"->True}];
 SetAttributes[InterpretSymbol,HoldFirst];
-SetAttributes[InterpretSymbolName,HoldFirst];
-InterpretSymbol[symbol_ /; Head@symbol === Association,opts:OptionsPattern[]] := InterpretSymbol[BaseClass[symbol],opts,"InterpretSymbolValue"->"Association"];
+InterpretSymbol[symbol_ /; Head@symbol === Association,opts:OptionsPattern[]] := InterpretSymbol[BaseClass[symbol],opts];
 InterpretSymbol[symbol_,opts:OptionsPattern[]] :=
 	Module[{interpretation,symb,symbolValue,interpretedSymbol},
 		
@@ -1233,7 +1233,6 @@ InterpretSymbol[symbol_,opts:OptionsPattern[]] :=
 		interpretedSymbol =
 			Switch[symbolValue,
 				None,symb,
-				"Association",symb.data[],
 				_,symb[symbolValue]
 			];
 		

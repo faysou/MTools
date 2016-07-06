@@ -1,0 +1,88 @@
+(* Content-type: application/vnd.wolfram.mathematica *)
+
+(*** Wolfram Notebook File ***)
+(* http://www.wolfram.com/nb *)
+
+(* CreatedBy='Mathematica 10.4' *)
+
+(*CacheID: 234*)
+(* Internal cache information:
+NotebookFileLineBreakTest
+NotebookFileLineBreakTest
+NotebookDataPosition[       158,          7]
+NotebookDataLength[      2102,         78]
+NotebookOptionsPosition[      1766,         61]
+NotebookOutlinePosition[      2147,         78]
+CellTagsIndexPosition[      2104,         75]
+WindowTitle->MTools
+WindowFrame->Palette*)
+
+(* Beginning of Notebook Content *)
+Notebook[{
+Cell[BoxData[
+ TagBox[GridBox[{
+    {
+     ButtonBox["\<\"Needs[\\\"MTools`\\\"]\"\>",
+      Appearance->"Palette",
+      ButtonFunction:>Needs["MTools`"],
+      Evaluator->Automatic,
+      Method->"Preemptive"]},
+    {
+     ButtonBox[
+      RowBox[{"InterpretSymbol", "[", "\[SelectionPlaceholder]", "]"}],
+      Appearance->"Palette",
+      BaseStyle->"Evaluate",
+      Evaluator->None,
+      Method->"Preemptive"]},
+    {
+     ButtonBox[
+      RowBox[{"UninterpretSymbol", "[", "\[SelectionPlaceholder]", "]"}],
+      Appearance->"Palette",
+      BaseStyle->"Evaluate",
+      Evaluator->None,
+      Method->"Preemptive"]}
+   },
+   DefaultBaseStyle->"Column",
+   GridBoxAlignment->{"Columns" -> {{Left}}},
+   GridBoxItemSize->{"Columns" -> {{Automatic}}, "Rows" -> {{Automatic}}}],
+  "Column"]],
+ CellMargins->{{0, 0}, {0, 0}},
+ CellBracketOptions->{"Color"->RGBColor[0.269993, 0.308507, 0.6]},
+ CellHorizontalScrolling->True,
+ PageBreakAbove->True,
+ PageBreakWithin->False,
+ ShowAutoStyles->True,
+ LineSpacing->{1.25, 0},
+ AutoItalicWords->{},
+ ScriptMinSize->9,
+ ShowStringCharacters->False,
+ FontFamily:>CurrentValue["PanelFontFamily"],
+ FontSize:>CurrentValue["PanelFontSize"]]
+},
+WindowSize->All,
+WindowMargins->{{Automatic, 692}, {405, Automatic}},
+WindowElements->{},
+WindowTitle->"MTools",
+FrontEndVersion->"10.4 for Microsoft Windows (32-bit) (April 11, 2016)",
+StyleDefinitions->"Palette.nb"
+]
+(* End of Notebook Content *)
+
+(* Internal cache information *)
+(*CellTagsOutline
+CellTagsIndex->{}
+*)
+(*CellTagsIndex
+CellTagsIndex->{}
+*)
+(*NotebookFileOutline
+Notebook[{
+Cell[579, 21, 1183, 38, 69, InheritFromParent,
+ PageBreakAbove->True,
+ PageBreakWithin->False]
+}
+]
+*)
+
+(* End of internal cache information *)
+
