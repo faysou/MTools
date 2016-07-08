@@ -6,7 +6,8 @@ contexts={
 	"MTools`Core`MPlusPlus`",
 	"MTools`Utils`Utils`",
 	"MTools`Core`GenericClasses`",
-	"MTools`Utils`MSync`"
+	"MTools`Utils`MSync`",
+	"MTools`Utils`Couch`"
 };
 
 Scan[Get,contexts];
