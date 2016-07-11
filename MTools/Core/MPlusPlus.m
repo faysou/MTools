@@ -209,6 +209,24 @@ defineObjectFunction[class_,f_,{args___},body_]:=
 		Replace[#,objectHold@e_ :> e,Infinity,Heads->True]& //
 		ReplaceAll[#,tagSetDelayed->TagSetDelayed]&
 	];
+	
+(*allows to have positional arguments and replace them with rules*)
+getOptionRules[class_,options_]:=
+	Block[{classOptionNames,usedOptions,nonRulePositions},
+
+		usedOptions = options;
+		
+		If[usedOptions =!= {},
+			nonRulePositions = Position[usedOptions, Except[_Rule], {1}, Heads -> False] // Flatten;
+			
+			If[nonRulePositions =!= {},
+				classOptionNames=ClassFields[class];
+				usedOptions[[nonRulePositions]] = Thread[classOptionNames[[nonRulePositions]] -> usedOptions[[nonRulePositions]]];
+			];
+		];
+		
+		usedOptions
+	];
     
 (*Last symbol in symbols has the top priority*)
 Options[New] = {"SharedObject"->False};
@@ -227,7 +245,7 @@ New[class_Symbol,OptionsPattern[]][opts___] :=
 		
 		newObject = class[Global`object];
 		
-		options=FilterRules[Flatten@{opts},Options@class];
+		options=FilterRules[getOptionRules[class,{opts}],Options@class];
 		
 		newObject.initData[options];	
 		
