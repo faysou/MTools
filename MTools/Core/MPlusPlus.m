@@ -245,7 +245,7 @@ New[class_Symbol,OptionsPattern[]][opts___] :=
 		
 		newObject = class[Global`object];
 		
-		options=FilterRules[getOptionRules[class,{opts}],Options@class];
+		options = FilterRules[Flatten@{opts},Options@class];
 		
 		newObject.initData[options];	
 		
