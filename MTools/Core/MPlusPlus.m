@@ -809,6 +809,7 @@ BaseClass.clear[]:= ClearObject[o];
 BaseClass.delete[]:= o.clear[];
 BaseClass.copy[]:= CopySymbol[o];
 BaseClass.type[]:= Head@o;
+BaseClass /: BaseClass[object_Symbol,___].switchType[class_]:= class[object];
 BaseClass.isType[testType_]:= o.type[] === testType;
 BaseClass /: BaseClass[object_Symbol,___].data[]:= object;
 BaseClass /: BaseClass[object_Symbol,___].objectQ[]:= ValueQ[object];
@@ -931,12 +932,12 @@ BaseClass.maxIndex[list_]:= Ordering@list // Last;
 BaseClass.minIndex[list_]:= Ordering@list // First;
 
 CreateHeldValue[initValue_:None]:= Module[{Global`heldValue=initValue},Hold[Global`heldValue]];
-SetHeldValue[heldValue_,value_]:= heldValue /. _[heldSymbol_] :> (heldSymbol = value);
-SetHeldValue[heldValue_,key_,value_]:= heldValue /. _[heldSymbol_] :> (heldSymbol[key] = value);
-GetHeldValue[heldValue_]:= heldValue//ReleaseHold;
-GetHeldValue[heldValue_,key_]:= (heldValue//ReleaseHold)[key];
-DeleteHeldValue[heldValue_]:= heldValue /. _[heldSymbol_] :> Unset[heldSymbol];
-DeleteHeldValue[heldValue_,key_]:= heldValue /. _[heldSymbol_] :> Unset[heldSymbol[key]];
+GetHeldValue[Hold[heldSymbol_]]:= heldSymbol;
+GetHeldValue[Hold[heldSymbol_],key_]:= heldSymbol[key];
+SetHeldValue[Hold[heldSymbol_],value_]:= heldSymbol = value;
+SetHeldValue[Hold[heldSymbol_],key_,value_]:= heldSymbol[key] = value;
+DeleteHeldValue[Hold[heldSymbol_]]:= Unset[heldSymbol];
+DeleteHeldValue[Hold[heldSymbol_],key_]:= Unset[heldSymbol[key]];
 
 BaseClass.createHeldValue[field_,initValue_:None]:= o.set[field,CreateHeldValue[initValue]];
 BaseClass.setHeldValue[field_,value_]:= SetHeldValue[o[field],value];
