@@ -611,15 +611,7 @@ GenericClass.databinInsert[databinId_,assoc_]:=
 	o.asyncEvaluate[
 		DatabinAdd[databinId,assoc];
 	];
-GenericClass.sendMail[subject_,message_,opts:OptionsPattern[SendEmail]]:=
-	If[OptionValue[SendEmail,{opts},"Attachments"] === {},
-		(*SendEmail doesn't work on parallel kernels*)
-		With[{to=OptionValue[SendEmail,{opts},"To"]},
-			o.asyncEvaluate[SendEmail2[subject,message,to],"ParallelKernel"->"DBKernel"]
-		]
-		,
-		SendEmail[subject,message,opts]
-	];
+GenericClass.sendMail[subject_,message_,opts:OptionsPattern[SendEmail]]:= SendEmail[subject,message,opts];
 GenericClass.logIt[comment_,opts___]:= LogIt[StringTemplate["`1` : `2`"][o["Id"],comment],opts];
 (* ::Subsubsection:: *)
 (* ::Subsubsection:: *)
