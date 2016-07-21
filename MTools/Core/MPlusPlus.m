@@ -267,6 +267,7 @@ New[][]:= New[BaseClass][];
 
 patternSignature[rule_]:=First@rule //. {Verbatim[Pattern][_,x_]:>x,Verbatim[Optional][x_,_]:>x};
 
+(*so that a class inherits functions like Keys[o_BaseClass]^:= o.getFields[] from its parent super classes*)
 inheritNonObjectFunctions[class_]:=
 	Block[{allNonObjectFunctions},
 		
@@ -785,12 +786,12 @@ BaseClass[object_,___][key_] := object[key];
 BaseClass[object_,___][keys__] := Fold[#1[#2]&,object,{keys}];
 
 (*implementations should be in class functions in order to benefit from inheritance*)
+(*BaseClass.(key:Except[sub|super,_Symbol|_String]):= o.getItem[key];*)
+BaseClass /: BaseClass[object_Symbol,___].(key:Except[sub|super,_Symbol|_String]):= object[MTools`Utils`Utils`GetSymbolName@key];
 SameQ[o_BaseClass,x__]^:= AllTrue[{x},o.sameQ[#]&];
 UnsameQ[o_BaseClass,x_]^:= !SameQ[o,x]; 
 Keys[o_BaseClass]^:= o.getFields[];
 Values[o_BaseClass]^:= o.getFieldValues[];
-(*BaseClass.(key:Except[sub|super,_Symbol|_String]):= o.getItem[key];*)
-BaseClass.(key:Except[sub|super,_Symbol|_String]):= o[MTools`Utils`Utils`GetSymbolName@key];
 
 (*clear shouln't be overloaded whereas delete can be*)
 BaseClass.clear[]:= ClearObject[o];
@@ -835,7 +836,7 @@ BaseClass /: BaseClass[object_Symbol,___].getItem[key_]:= object[MTools`Utils`Ut
 
 BaseClass.setItemAux[HoldPattern[Dot[keys__]],value_]:=
 	Fold[#1[MTools`Utils`Utils`GetSymbolName@#2]&,o,Most@{keys}].set[MTools`Utils`Utils`GetSymbolName@Evaluate@Last@{keys},value];
-BaseClass.setItemAux[key_,value_] := o.set[MTools`Utils`Utils`GetSymbolName@key,value];
+BaseClass /: BaseClass[object_Symbol,___].setItemAux[key_,value_] := object[MTools`Utils`Utils`GetSymbolName@key] = value;
 (*BaseClass.setItemAux[HoldPattern[Dot[keys__]],value_]:=
 	Fold[#1.getItem[#2]&,o,Most@{keys}].setItem[MTools`Utils`Utils`GetSymbolName@Evaluate@Last@{keys},value];
 BaseClass.setItemAux[key_,value_] := o.setItem[MTools`Utils`Utils`GetSymbolName@key,value];
