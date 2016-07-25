@@ -19,6 +19,7 @@ PropertiesCheckboxBar::usage = "PropertiesCheckboxBar is a class that implement 
 (*functions with HoldX attribute should be exported so that the exact symbol is used instead of another symbol*)
 iterate::usage = " ";
 superIterate::usage = " ";
+selfIterate::usage = " ";
 iterateAssociation::usage = " ";
 treeIterate::usage = " ";
 upIterate::usage = " ";
@@ -48,17 +49,6 @@ InitSingleton[$treeId,0];
 InitSingleton[$GenericObjects,Association[]];
 
 $emptyElement = "-";
-
-toggleLock[o_,field_,value_]:=
-	(
-		o.set[field,value]; 
-		
-		If[o[field],
-			o.lock[]
-			,
-			o.unlock[]
-		];
-	);
 (* ::Subsubsection:: *)
 (* ::Subsubsection:: *)
 (* 		GenericClass/SelectedClass *)
@@ -258,6 +248,7 @@ GenericClass.findObject[field_,value_,condition_:(True &)]:=
 		Missing[field]
 	];
 GenericClass.getRecursiveField[field_,operation_]:= o[field];
+GenericClass.getRecursiveFunction[fun_,operation_]:= o.fun;
 (* ::Subsubsection:: *)
 (* ::Subsubsection:: *)
 (* 		GenericClass/Display Interface*)
@@ -611,15 +602,7 @@ GenericClass.databinInsert[databinId_,assoc_]:=
 	o.asyncEvaluate[
 		DatabinAdd[databinId,assoc];
 	];
-GenericClass.sendMail[subject_,message_,opts:OptionsPattern[SendEmail]]:=
-	If[OptionValue[SendEmail,{opts},"Attachments"] === {},
-		(*SendEmail doesn't work on parallel kernels*)
-		With[{to=OptionValue[SendEmail,{opts},"To"]},
-			o.asyncEvaluate[SendEmail2[subject,message,to],"ParallelKernel"->"DBKernel"]
-		]
-		,
-		SendEmail[subject,message,opts]
-	];
+GenericClass.sendMail[subject_,message_,opts:OptionsPattern[SendEmail]]:= SendEmail[subject,message,opts];
 GenericClass.logIt[comment_,opts___]:= LogIt[StringTemplate["`1` : `2`"][o["Id"],comment],opts];
 (* ::Subsubsection:: *)
 (* ::Subsubsection:: *)
@@ -1122,7 +1105,7 @@ GenericGroup.appendToComponents[newComponent_,setCompIds_:True]:=
 		
 		(*it can be useful to not overwrite ids, for example when loading 
 		orders, their components and their subOrders, if we set component ids 
-		when adding orders the components are overwrittens*)
+		when adding orders the components are overwritten*)
 		If[setCompIds,
 			o.setComponentIds[];
 		];
@@ -1218,7 +1201,7 @@ SetAttributes[superIterate,HoldFirst];
 GenericGroup.anyTrue[f_]:=AnyTrue[o["Components"],#.f &];
 GenericGroup.componentsThread[fun_[otherArgs___,list_]]:= MapThread[#1.fun[otherArgs,#2]&,{o["Components"],list}];
 superIterate::unknownTraversal = "`1` is an unknown TraversalOrder option.";
-SetAttributes[superIterate,HoldFirst];
+SetAttributes[{superIterate,selfIterate},HoldFirst];
 Options[superIterate] = Join[Options[iterate],{"SuperClass"->Automatic,"TraversalOrder"->"Prefix"(*or "Postfix"*)}];
 GenericGroup.superIterate[fun_,opts:OptionsPattern[superIterate]]:= 
 	Block[{superClass,superResult,iterationResult,traversalOrder},
@@ -1229,10 +1212,13 @@ GenericGroup.superIterate[fun_,opts:OptionsPattern[superIterate]]:=
 		Switch[traversalOrder,
 			"Prefix",
 				superResult =
-					If[superClass === Automatic,
-						o.super.fun
-						,
-						o.super[superClass].fun
+					Switch[superClass,
+						Automatic,
+							o.super.fun,
+						None,
+							o.fun,
+						_,
+							o.super[superClass].fun
 					];
 					
 				iterationResult = o.iterate[fun,FilterRules[{opts},Options[iterate]]];
@@ -1243,10 +1229,13 @@ GenericGroup.superIterate[fun_,opts:OptionsPattern[superIterate]]:=
 				iterationResult = o.iterate[fun,FilterRules[{opts},Options[iterate]]];
 				
 				superResult =
-					If[superClass === Automatic,
-						o.super.fun
-						,
-						o.super[superClass].fun
+					Switch[superClass,
+						Automatic,
+							o.super.fun,
+						None,
+							o.fun,
+						_,
+							o.super[superClass].fun
 					];
 					
 				Append[iterationResult,superResult]
@@ -1256,6 +1245,7 @@ GenericGroup.superIterate[fun_,opts:OptionsPattern[superIterate]]:=
 				Abort[];
 		]
 	];
+GenericGroup.selfIterate[fun_,opts:OptionsPattern[superIterate]]:= o.superIterate[fun,"SuperClass"->None,opts];
 GenericGroup.treeIterate[fun_,opts:OptionsPattern[treeIterate]]:= 
 	Block[{nodeValue,treeValues,result,iterationResult,condition,traversalOrder},
 		
@@ -1342,6 +1332,7 @@ GenericGroup.sortBy[{property_,propertyType_},increasing_:True]:=
 		o.setComponentIds[];
 	];
 GenericGroup.getRecursiveField[field_,operation_]:= o.iterate[getRecursiveField[field,operation]] // operation;
+GenericGroup.getRecursiveFunction[fun_,operation_]:= o.iterate[getRecursiveFunction[fun,operation]] // operation;
 (* ::Subsubsection:: *)
 (* ::Subsubsection:: *)
 (* 		GenericGroup/Display *)
@@ -1842,6 +1833,7 @@ Queue.pop[]:=
 			Missing["EmptyQueue"]	
 		]
 	];
+Queue.isEmptyQueue[]:= o["Queue"] === {};
 (* ::Subsubsection:: *)
 (* 		Data structures/Heap *)
 (*highest priority exits first*)
@@ -1869,6 +1861,7 @@ Heap.pop[]:=
 			Missing["EmptyHeap"]	
 		]
 	];
+Heap.isEmptyHeap[]:= o["Heap"] === {};
 (* ::Subsubsection:: *)
 (* ::Subsection:: *)
 End[] (* End Private Context *)
