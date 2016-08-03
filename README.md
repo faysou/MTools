@@ -92,6 +92,15 @@ This package is released under
 
 I used as template the README of the [ClasslessObjects](https://github.com/jkuczm/MathematicaClasslessObjects) project.
 
+I used the following contributions posted by people on Mathematica Stackexchange for some functions in the Utils.m package:  
+
+- [Date Picker by R. M.](https://github.com/faysou/MTools/issues)  
+- [Frozen Pane Grid by Mike Honeychurch](http://mathematica.stackexchange.com/a/21122/66)     
+- [Observer Pattern by Leonid Shifrin](http://mathematica.stackexchange.com/a/47664/66)     
+- [A tricky evaluation issue solved by ybeltukov](http://mathematica.stackexchange.com/a/73017/66)   
+
+
+
 
 ## Versioning
 
