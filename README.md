@@ -26,7 +26,7 @@ The package also contains:
 
 ## Usage example
 
-You can find usage examples on the [Wolfram Community](http://community.wolfram.com/groups/-/m/t/880686?p_p_auth=e2EwS0fM) site and
+You can find usage examples on the [Wolfram Community](http://community.wolfram.com/groups/-/m/t/880686) site and
 in the [answer to "Once more on object orientation..." question](http://mathematica.stackexchange.com/a/119896/66)
 on Mathematica Stack Exchange.
 
