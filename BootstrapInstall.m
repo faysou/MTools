@@ -5,12 +5,12 @@ Get["https://raw.githubusercontent.com/jkuczm/MathematicaBootstrapInstaller/v0.1
 
 BootstrapInstall[
 	"MTools",
-	"https://github.com/faysou/MTools/releases/download/0.1.2/MTools.zip",
+	"https://github.com/faysou/MTools/releases/download/0.2.0/MTools.zip",
 	"AdditionalFailureMessage" ->
 		Sequence[
 			"You can ",
 			Hyperlink[
-				"install ClasslessObjects package manually",
+				"install the MTools package manually",
 				"https://github.com/faysou/MTools#manual-installation"
 			],
 			"."

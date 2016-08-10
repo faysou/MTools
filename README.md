@@ -26,7 +26,7 @@ The package also contains:
 
 ## Usage example
 
-You can find usage examples on the [Wolfram Community](http://community.wolfram.com/groups/-/m/t/880686?p_p_auth=e2EwS0fM) site and
+You can find usage examples on the [Wolfram Community](http://community.wolfram.com/groups/-/m/t/880686) site and
 in the [answer to "Once more on object orientation..." question](http://mathematica.stackexchange.com/a/119896/66)
 on Mathematica Stack Exchange.
 
@@ -91,6 +91,15 @@ This package is released under
 ### Attribution
 
 I used as template the README of the [ClasslessObjects](https://github.com/jkuczm/MathematicaClasslessObjects) project.
+
+I used the following contributions posted by people on Mathematica StackExchange for some functions in the Utils.m package:  
+
+- [Date Picker by R. M.](http://mathematica.stackexchange.com/a/16550/66)  
+- [Frozen Pane Grid by Mike Honeychurch](http://mathematica.stackexchange.com/a/21122/66)     
+- [Observer Pattern by Leonid Shifrin](http://mathematica.stackexchange.com/a/47664/66)     
+- [A tricky evaluation issue solved by ybeltukov](http://mathematica.stackexchange.com/a/73017/66)   
+
+
 
 
 ## Versioning
