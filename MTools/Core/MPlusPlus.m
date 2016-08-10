@@ -113,10 +113,6 @@ NewClass /: Set[classSymbol_Symbol,NewClass[opts:OptionsPattern[]]] :=
 		setupNewClass[classSymbol,classProperties];
 		
 		inherit[classSymbol,parentClasses];
-		
-		If[Options[classSymbol] =!= {},
-			ClassFields[classSymbol] ^= Options[classSymbol][[All,1]];
-		];
 			
 		If[interfaceOrdering =!= {},
 			InterfaceOrdering[classSymbol] ^= interfaceOrdering;
@@ -129,26 +125,64 @@ NewClass /: Set[classSymbol_Symbol,NewClass[opts:OptionsPattern[]]] :=
 
 SetAttributes[isOptionDuplicate,Orderless];
 isOptionDuplicate[x_->_,x_->_]:=True;
+isOptionDuplicate[{x_->_,__},{x_->_,__}]:=True;
 isOptionDuplicate[{x_->_,__},x_->_]:=True;
 isOptionDuplicate[__]:=False;
 
 setupNewClass[classSymbol_,classOptions_]:=
-    Module[{classOptionsOnly,interface,usedClassOptions},
+    Module[{classOptionsOnly,interface,usedClassOptions,nonClassFields},
     	
+    	(*we find nonClassFields, ie options that are not stored when an object is created,
+    	they are option names surrounded by a list*)
+    	nonClassFields =
+    		Cases[
+    			classOptions
+    			,
+    			{Verbatim[Rule][{x_},_],__} | {{x_},__} | Verbatim[Rule][{x_},_] | {x_} :> x
+    			,
+    			{1}
+    		] // Map@MTools`Utils`Utils`GetSymbolName //
+    		DeleteDuplicates; 
+    		
+		(*we remove the nonClassFields specification from classOptions*)
+    	usedClassOptions =
+			Replace[
+				classOptions
+				,
+				{ 
+					{Verbatim[Rule][{x_},y_],z__} :> {x->y,z},
+					{{x_},y__} :> {x,y},
+					Verbatim[Rule][{x_},y_] :> {x->y},
+					{x_} :> x
+				}
+				,
+				{1}
+			];
+    	
+    	(*we assign a None default argument when no default option value is given*)
     	usedClassOptions = 
     		Replace[
-    			classOptions,
+    			usedClassOptions,
     			{optionName:Except[_Rule|_List] :> (optionName->None), {optionName:Except[_Rule],rest__} :> {optionName->None,rest}},
     			{1}
     		]//
     		DeleteDuplicates[#,isOptionDuplicate]&;
        
+       	(*setting the class interface for displaying some fields in a custom way with EditSymbolPane and related functions*)
         interface=Cases[usedClassOptions,{paramName_->_,interfaceSpec__}:>{MTools`Utils`Utils`GetSymbolName@paramName,interfaceSpec}];
         SetInterface[classSymbol,interface];
         
+        (*assigning Options and ClassFields*)
     	classOptionsOnly=Replace[usedClassOptions,x_List:>x[[1]],{1}];
+    	
     	If[classOptionsOnly =!= {},
     		classOptionsOnly[[All,1]]=MTools`Utils`Utils`GetSymbolName /@ classOptionsOnly[[All,1]];
+    		
+	       	(*ClassFields are the arguments stored in an object at creation time, use
+	    	BaseClass.getOption for the non stored arguments*)
+    		ClassFields[classSymbol] ^= Complement[classOptionsOnly[[All,1]],nonClassFields];
+    		,
+    		ClassFields[classSymbol] ^= {};
     	];
     	
         Options[classSymbol] = classOptionsOnly;
@@ -162,7 +196,14 @@ getAllSupersIterated[classList_]:=FixedPoint[getAllSupers,classList];
 inherit[newClass_,classList_List,newOptions_:{}] := 
 	(		
     	Supers[newClass] ^= getAllSupersIterated[Prepend[classList,BaseClass]];
+    	
 	 	Options[newClass]=MTools`Utils`Utils`JoinOptions[newOptions,Options /@ Reverse@Append[classList,newClass]];
+	 	
+	 	ClassFields[newClass] ^= 
+	 		(ClassFields /@ Append[classList,newClass] // Flatten) /. 
+	 		_ClassFields :> Sequence[] // 
+	 		DeleteDuplicates;
+	 		
 		inheritInterface[newClass,classList];
 	);
     
@@ -332,6 +373,7 @@ addSpecialRules[class_]:=
 				class[params].super.f[args]
 		];
 		
+		(*http://mathematica.stackexchange.com/a/73017/66*)
 		(*so that when an object is returned as o for example, its main representation is returned*)
 		appendToUpValues[class,
 			HoldPattern[h_[a___,class[object_,___,specialRuleMainClass_],b___] /; cacheUnsameDot[h]] :> 
@@ -793,17 +835,6 @@ UnsameQ[o_BaseClass,x_]^:= !SameQ[o,x];
 Keys[o_BaseClass]^:= o.getFields[];
 Values[o_BaseClass]^:= o.getFieldValues[];
 
-(*clear shouln't be overloaded whereas delete can be*)
-BaseClass.clear[]:= ClearObject[o];
-BaseClass.delete[]:= o.clear[];
-BaseClass.copy[]:= CopySymbol[o];
-BaseClass.type[]:= Head@o;
-BaseClass /: BaseClass[object_Symbol,___].switchType[class_]:= class[object];
-BaseClass.isType[testType_]:= o.type[] === testType;
-BaseClass /: BaseClass[object_Symbol,___].data[]:= object;
-BaseClass /: BaseClass[object_Symbol,___].objectQ[]:= ValueQ[object];
-BaseClass.sameQ[x_]:= TrueQ[x.objectQ[]] && o.isType[x.type[]] && (o.data[] === x.data[]);
-
 (*Field setters getters*)
 (*Function for fields. A field is an object key*)
 BaseClass /: BaseClass[object_Symbol,___].set[keyValues_Association] := AssociateTo[object,keyValues];
@@ -814,13 +845,25 @@ BaseClass.set[keys__,lastKey_,value_] := o[keys].set[lastKey,value];
 BaseClass /: BaseClass[object_Symbol,___].set[key_,value_] := object[key]=value; 
 SetField = #.set[#2,#3]&;
 
+(*clear shouln't be overloaded whereas delete can be*)
+BaseClass.clear[]:= ClearObject[o];
+BaseClass.delete[]:= o.clear[];
+BaseClass.copy[]:= CopySymbol[o];
+BaseClass.type[]:= Head@o;
+BaseClass /: BaseClass[object_Symbol,___].switchType[class_]:= class[object];
+BaseClass.isType[testType_]:= o.type[] === testType;
+BaseClass /: BaseClass[object_Symbol,___].data[]:= object;
+BaseClass.flattenObject[]:= {o.type[],o.data[]};
+BaseClass /: BaseClass[object_Symbol,___].objectQ[]:= ValueQ[object];
+BaseClass.sameQ[x_]:= TrueQ[x.objectQ[]] && o.isType[x.type[]] && (o.data[] === x.data[]);
+
 (*TODO allow to not initialize all fields*)
 BaseClass.initData[options_]:= 
 	Block[{classOptionNames,class=o.type[]},
 		
 		classOptionNames=ClassFields[class];
 		
-		If[!MatchQ[classOptionNames,_ClassFields],
+		If[!MatchQ[classOptionNames,_ClassFields|{}],
 			o.set[classOptionNames,OptionValue[class,options,#]& /@ classOptionNames]
 		]
     ];
@@ -861,12 +904,11 @@ x.a."b".c /= 4
 *)
 
 BaseClass.fieldExistsQ[field__]:= o[field] // FreeQ[Missing];
-BaseClass.get[field__]:= If[o.fieldExistsQ[field],o[field],Missing[field]]; 
+BaseClass.get[field__]:= o[field] // If[FreeQ[#,Missing], #, Missing[field]]&; 
 BaseClass.get[]:= Identity@o;
-BaseClass.deleteField[field_]:= o /. _[data_]:>Unset[data[field]]; 
+BaseClass /: BaseClass[object_Symbol,___].deleteField[field_]:= Unset[object[field]]; 
 BaseClass /: BaseClass[object_Symbol,___].getFields[]:= Keys[object];
 BaseClass /: BaseClass[object_Symbol,___].getFieldValues[]:= Values[object];
-BaseClass.flattenObject[]:= {o.type[],o.data[]};
 BaseClass /: BaseClass[object_Symbol,___].fieldTake[fields_]:= KeyTake[object,fields];
 BaseClass.addField[field_,value_]:= (o.set[field,value]; o); (*builder pattern*)
 
@@ -882,7 +924,11 @@ BaseClass.deleteAllStatic[class_]:= (SetHeldValue[$StaticAssociation[class],Asso
 BaseClass.getSuperClass[nth_:1]:= Supers[o.type[]] // Reverse // #[[Min[nth,Length@#]]]&;
 
 (*Functions for elements contained in fields*)
-BaseClass.apply[f_[{list___}]]:= o.f[list];
+BaseClass.getOption[options_,option_]:= 
+	Block[{currentType},
+		currentType=o.type[];
+		OptionValue[currentType,FilterRules[options,Options[currentType]],option]
+	];
 BaseClass.clearList[asscociationField_]:= o.set[asscociationField,{}];
 BaseClass.clearAssociation[asscociationField_]:= o.set[asscociationField,Association[]];
 BaseClass.setKey[asscociationField_,key_,value_]:=o.set[asscociationField,Association[o[asscociationField],key->value]];
@@ -910,6 +956,7 @@ BaseClass.appendJoin[listField_,value_]:= o.set[listField,Join[o[listField],valu
 BaseClass.setPart[listField_,part_,value_]:= o.set[listField,ReplacePart[o[listField],part->value]];
 BaseClass.getPart[listField_,part__]:= Part[o[listField],part];
 BaseClass.isEmpty[listOrAssociationField_]:= Normal@o[listOrAssociationField] === {};
+
 BaseClass.deleteCases[listField_,pattern__]:= o.set[listField,DeleteCases[o[listField],pattern]];
 BaseClass.position[listField_,pattern__]:= Position[o[listField],pattern];
 BaseClass.deleteDuplicates[listField_,test_:SameQ]:= o.set[listField,DeleteDuplicates[o[listField],test]];
@@ -917,7 +964,9 @@ BaseClass.cases[listField_,pattern_]:= Cases[o[listField],pattern];
 BaseClass.selectField[listField_,test_]:= Select[o[listField],test];
 BaseClass.thread[fun_[lists___]]:= MapThread[o.fun[##]&,{lists}];
 BaseClass.through[funs_]:= o.#& /@ funs;
-BaseClass.getOption[options_,option_]:= OptionValue[o.type[],FilterRules[options,Options[o.type[]]],option];
+BaseClass.apply[f_[{list___}]]:= o.f[list];
+BaseClass.excuteFunction[f_]:= f[o];
+
 BaseClass.addToField[field_,value_]:= o.set[field,o[field]+value];
 BaseClass.multiplyByField[field_,value_]:= o.set[field,o[field]*value];
 BaseClass.increment[field_]:= o.addToField[field,1];
@@ -982,7 +1031,7 @@ BaseClass /: BaseClass[object_Symbol,___].clearCacheFunction[class_,function_,ca
 			UpValues[class] = Append[UpValues[class],mainRepresentationRule];
 		];
 	];
-(*xx.f[]:=o.staticCacheFunction[f[],(Print@2;3)]
+(*
 xx=NewClass[]
 yy=NewClass["Parents"->{xx}]
 xxx=New[xx][]
@@ -990,7 +1039,8 @@ xxx.f[]
 yyy=New[yy][]
 yyy.f[]
 yyy.clearCacheFunction[xx,f,"Static"]
-zz.fib[n_] := o.cacheFunction[fib[n],Print[n]; If[MatchQ[n, 0 | 1], 1, o.fib[n - 1] + o.fib[n - 2]]];*)
+zz.fib[n_] := o.cacheFunction[fib[n],Print[n]; If[MatchQ[n, 0 | 1], 1, o.fib[n - 1] + o.fib[n - 2]]];
+*)
 
 Supers[BaseClass] ^= {};
 (* ::Subsubsection:: *)
@@ -999,7 +1049,7 @@ Supers[BaseClass] ^= {};
 (*
 {{key,specs}...}
 Interface example
-Interface[MyClass] = {{"Field1","PopupMenu","Specs"->{{2}}},{"Field2","InputField",...},...}
+Interface[MyClass] = {{"Field1","PopupMenu","Specs"->{{2}}},{"Field2","InputField","Callback"->Print},...}
 
 InterfaceOrdering[IbVanilla] ^= {"key1","key2"...}
 *)

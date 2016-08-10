@@ -182,9 +182,9 @@ Options[upIterate] = {"Condition"->(True&),"ExternalIterate"->False};
 GenericClass.upIterate[fun_,opts:OptionsPattern[upIterate]]:=
 	Block[{iterationResult,condition,carryTreeResult,componentsList},
 		
-		condition = OptionValue[iterate,{opts},"Condition"];
+		condition = OptionValue[upIterate,{opts},"Condition"];
 		
-		If[!OptionValue[iterate,{opts},"ExternalIterate"],
+		If[!OptionValue[upIterate,{opts},"ExternalIterate"],
 			o.fun
 			,
 			fun[o]
@@ -298,6 +298,8 @@ GenericClass.registerDisplayedProperties[properties_]:=
 					o.deleteCases["DisplayedProperties",{##}];
 				)& @@@ oldProperties;
 		];
+		
+		o["DisplayedProperties"]
 	];
 (*we use this in order to not execute a sub implementation*)
 GenericClass.unregisterDisplayedProperties[propertiesType_]:= o.this.registerDisplayedProperties[{{propertiesType}}]; 
