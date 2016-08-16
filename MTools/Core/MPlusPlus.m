@@ -105,9 +105,7 @@ PrintSymbol::usage = "PrintSymbol[symbol,fieldsExcluded] displays the symbol nam
 UpKeys::usage = "UpKeys[symbol] returns the symbols acting on symbol as UpValues.";
 KeyQ::usage = "KeyQ[object,key] returns True if key is a member of object.";
 UpKeyQ::usage = "UpKeyQ[symbol,key] == True if key[symbol] is an UpValue of symbol.";
-UpdateRules::usage=
-"UpdateRules[symbol, newRules, updateSymbolRulesOnly] updates the text downvalues in symbol with rules of newRules.
-Ex: If mp[Quote a Quote] == 1 then after UpdateRules[mp,{a->2,b->1}] we have mp[Quote a Quote] == 2";
+UpdateRules::usage= "UpdateRules[symbol, newRules, updateSymbolRulesOnly]";
 (* ::Subsubsection:: *)
 Begin["`Private`"]
 (* ::Subsubsection:: *)
@@ -359,11 +357,6 @@ prependToUpValues[symbol_,newRule_]:=
 	
 addSpecialRules[class_]:=
 	(		
-		prependToUpValues[class,
-			HoldPattern[class[params___].this.f_[args___]] :> 
-				executeThisFunction[class,f,class[params].f[args]]
-		];
-		
 		(*We want a high priority for this rule, a function by default calls sub*)
 		prependToUpValues[class,
 			(*Dot has flat attribute so any sequence can be matched for example x.super[c].g[3] will match to (x.super[c]).g[3] 
@@ -422,6 +415,8 @@ InitializeClass[class_]:=
 		
 		Initialized@class ^= True;
 	);
+	
+this /: class_Symbol[params___].this.function_Symbol[args___] := executeThisFunction[class,function,class[params].function[args]];
 
 sub::noFct = "Class `1` doesn't have a sub class with member function `2`.";
 sub /: class_Symbol[params___].sub.function_Symbol[args___] :=
@@ -686,7 +681,7 @@ g:nonObjectRules[class_Symbol]:= g =
 			(*BaseClass[object,___] /; condition*)
 			Verbatim[RuleDelayed][Verbatim[HoldPattern][Verbatim[Condition][Verbatim[Dot][_,_[___]],_]],_] | 
 			(*we exclude sepcial key words while still including the getItem rule, we also exclude all constants*)
-			(x_/; !FreeQ[x,sub|this|super|specialRuleMainClass] && FreeQ[x,(*getItem*)Except[sub|super,_Symbol|_String]] || 
+			(x_/; !FreeQ[x,sub|this|super|specialRuleMainClass] && FreeQ[x,(*getItem*)Except[sub|super|this,_Symbol|_String]] || 
 			FreeQ[x,Blank|BlankSequence|BlankNullSequence|OptionsPattern])
 		]
 	];
@@ -835,8 +830,8 @@ BaseClass[object_,___][key_] := object[key];
 BaseClass[object_,___][keys__] := Fold[#1[#2]&,object,{keys}];
 
 (*implementations should be in class functions in order to benefit from inheritance*)
-(*BaseClass.(key:Except[sub|super,_Symbol|_String]):= o.getItem[key];*)
-BaseClass /: BaseClass[object_Symbol,___].(key:Except[sub|super,_Symbol|_String]):= object[MTools`Utils`Utils`GetSymbolName@key];
+(*BaseClass.(key:Except[sub|super|this,_Symbol|_String]):= o.getItem[key];*)
+BaseClass /: BaseClass[object_Symbol,___].(key:Except[sub|super|this,_Symbol|_String]):= object[MTools`Utils`Utils`GetSymbolName@key];
 SameQ[o_BaseClass,x__]^:= AllTrue[{x},o.sameQ[#]&];
 UnsameQ[o_BaseClass,x_]^:= !SameQ[o,x]; 
 Keys[o_BaseClass]^:= o.getFields[];
