@@ -9,6 +9,7 @@ BeginPackage["MTools`Utils`Utils`",
 
 FrozenPaneGrid::usage = "FrozenPaneGrid[tl,tr,bl,br,opts]";
 DeleteCachedValues::usage = "DeleteCachedValues[f] deletes all cached values of a function using memoization (a cached value hasn't any pattern variable like x)"
+DeleteCachedSubValues::usage = "DeleteCachedSubValues[f]"
 GetNonEmptyColumn::usage = "GetNonEmptyColumn  "
 InitSingleton::usage = "InitSingleton  "
 ReplaceKey::usage = "ReplaceKey  "
@@ -70,6 +71,9 @@ g:GetSymbolName[symbol_] := g = StringReplace[ToString@HoldForm@symbol,nameRule]
 SetAttributes[DeleteCachedValues,Listable];
 DeleteCachedValues[f_] := (DownValues[f] = Select[DownValues[f], !FreeQ[Hold@#,Pattern]&];);
 DeleteCachedValues[f_,nrules_] := (DownValues[f] = Extract[DownValues[f], List /@ Range[-nrules, -1]];);
+
+DeleteCachedSubValues[f_] := (SubValues[f] = Select[SubValues[f], !FreeQ[Hold@#,Pattern]&];);
+DeleteCachedSubValues[f_,nrules_] := (SubValues[f] = Extract[SubValues[f], List /@ Range[-nrules, -1]];);
 
 GetNonEmptyColumn[table_,column_]:=If[table === {},{},table[[All,column]]];
 

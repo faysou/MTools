@@ -8,7 +8,14 @@ NewClass::usage =
 and the parent classesusing the option \"Fields\".";
 New::usage = "New[class][fieldOptions] creates an instance of class with optional property values.";
 
-{sub,super,SubClass}; (*see below for the usage definition*)
+SubClass; (*see below for the usage definition*)
+sub::usage = 
+"Class[object,classStack___,CallingClass].sub.f[args] or CallingClass[object].sub.f[args] executes function f 
+using the implementation of CallingClass or the nearest super class of CallingClass.";
+super::usage = 
+"Class[object].super.f[args] executes function f using the implementation of the nearest super class of Class.
+Class[object].super[OtherClass].f[args] executes function f using the implementation of OtherClass or the nearest super class of OtherClass.";
+super::noFct = "Class `1` doesn't have a super class with member function `2`.";
 this::usage = "Class[object].this.f[args] forces Class to execute its implementation of f.";
 
 Supers::usage = "Supers[Class] contains the list of super classes by ascending order of priority.";
@@ -416,133 +423,94 @@ InitializeClass[class_]:=
 		Initialized@class ^= True;
 	);
 
-resetSubSuper[]:=
-	(
-		ClearAll@sub;
-		sub::usage = 
-		"Class[object,classStack___,CallingClass].sub.f[args] or CallingClass[object].sub.f[args] executes function f 
-		using the implementation of CallingClass or the nearest super class of CallingClass.";
-		sub::noFct = "Class `1` doesn't have a sub class with member function `2`.";
-		sub /: class_Symbol[params___].sub.function_Symbol[args___] :=
-		    Block[{subs,mainClass, classPosition},
-		    	
-		    	If[Length@{params} <= 1,
-		    		subs = Flatten@{Supers[class],class};
-		    		,
-			    	mainClass = Last@{params};
-		    		subs = Flatten@{Supers[mainClass],mainClass};
-		    		
-		    		(*useful in the .super[superClass] where superClass doesn't belong to inheritance tree*)
-					classPosition = cachedPosition[subs,class];
-		    		
-		    		If[classPosition === {},
-		    			(*simplified branching mechanism, we make mainClass inherit from class,
-		    			priority to sub in mainClass, but inheritance tree of class can also be used*)
-		    			subs = Flatten@{Supers[class],class,subs} // DeleteDuplicates;
-		    		];
-		    	];
-		    	
-		    	redefineFunction[sub,subs,{class,{params},function,{args}}]
-			];
-		(*tricky and rare sub example, in order to avoid infinite recursion,
-		when overloaded and parent functions call each other, as, without sub in x,
-		sub call cannot happen in the execution of x.f as $blockSub[x,f] is already 
-		set to True when y[obj,x].super.f[x] happens followed by x[obj,x].this.f[x]
-		
-		x=NewClass[]
-		y=NewClass["Parents"->{x}]
-		x.f[x_]:=o.sub.f[2]
-		y.f[x_/;EvenQ@x]:=x^2
-		
-		zz=New[y][]
-		zz.f[3]*)
+sub::noFct = "Class `1` doesn't have a sub class with member function `2`.";
+sub /: class_Symbol[params___].sub.function_Symbol[args___] :=
+    Block[{subs,mainClass, classPosition},
+    	
+    	If[Length@{params} <= 1,
+    		subs = Flatten@{Supers[class],class};
+    		,
+	    	mainClass = Last@{params};
+    		subs = Flatten@{Supers[mainClass],mainClass};
+    		
+    		(*useful in the .super[superClass] where superClass doesn't belong to inheritance tree*)
+			classPosition = cachedPosition[subs,class];
+    		
+    		If[classPosition === {},
+    			(*simplified branching mechanism, we make mainClass inherit from class,
+    			priority to sub in mainClass, but inheritance tree of class can also be used*)
+    			subs = Flatten@{Supers[class],class,subs} // DeleteDuplicates;
+    		];
+    	];
+    	
+    	redefineFunction[sub,subs,{class,{params},function,{args}}]
+	];
+(*tricky and rare sub example, in order to avoid infinite recursion,
+when overloaded and parent functions call each other, as, without sub in x,
+sub call cannot happen in the execution of x.f as $blockSub[x,f] is already 
+set to True when y[obj,x].super.f[x] happens followed by x[obj,x].this.f[x]
 
-		ClearAll@super;
-		super::usage = 
-		"Class[object].super.f[args] executes function f using the implementation of the nearest super class of Class.
-		Class[object].super[OtherClass].f[args] executes function f using the implementation of OtherClass or the nearest super class of OtherClass.";
-		super::noFct = "Class `1` doesn't have a super class with member function `2`.";
-		super::noClsFct = "Class `1` doesn't have as member function `2`.";
-		super /: class_Symbol[params___].super.function_Symbol[args___] :=
-		    Block[{supers,classPosition,mainClass},
-		    	
-				If[Length@{params} <= 1,
-		    		supers = Supers[class];
-		    		,
-		    		mainClass = Last@{params};
-		    		supers = Supers[mainClass];
-		    		
-		    		If[class =!= mainClass,
-		    			
-		    			classPosition = cachedPosition[supers,class];
-		    			
-		    			If[classPosition =!= {},
-		    				(*supers from the point of view of class in the inheritance tree of Last@classStack*)
-		    				(*BaseClass never calls super so classPosition[[1,1]] - 1 is OK*)
-		    				supers = supers[[ ;; classPosition[[1,1]] - 1 ]];
-		    				,
-		    				(*useful in the .super[superClass] where superClass doesn't belong to the inheritance tree*)
-		    				supers = Supers[class]; 
-		    			];
-		    		];
-		    	];
-		    	
-		    	redefineFunction[super,supers,{class,{params},function,{args}}]
-			];
-			
-		super /: class_Symbol[params___].super[superClass_].function_Symbol[args___] :=
-		    Block[{supers,classPosition,mainClass,executedClass,resultFunction},
-		    	
-				If[Length@{params} <= 1,
-		    		mainClass = class;
-		    		,
-		    		mainClass = Last@{params};
-				];
-				
-				(*this allows to use mainClass if called from higher in the inheritance tree*)
-	    		supers = Flatten@{Supers[mainClass],mainClass};
-	    		
-				classPosition = cachedPosition[supers,superClass];
-	    			
+x=NewClass[]
+y=NewClass["Parents"->{x}]
+x.f[x_]:=o.sub.f[2]
+y.f[x_/;EvenQ@x]:=x^2
+
+zz=New[y][]
+zz.f[3]*)
+
+super::noClsFct = "Class `1` doesn't have as member function `2`.";
+super /: class_Symbol[params___].super.function_Symbol[args___] :=
+    Block[{supers,classPosition,mainClass},
+    	
+		If[Length@{params} <= 1,
+    		supers = Supers[class];
+    		,
+    		mainClass = Last@{params};
+    		supers = Supers[mainClass];
+    		
+    		If[class =!= mainClass,
+    			
+    			classPosition = cachedPosition[supers,class];
+    			
     			If[classPosition =!= {},
-    				(*supers from the point of view of superClass in the inheritance tree of Last@classStack,
-    				including superClass*)
-    				supers = supers[[ ;;classPosition[[1,1]] ]];
+    				(*supers from the point of view of class in the inheritance tree of Last@classStack*)
+    				(*BaseClass never calls super so classPosition[[1,1]] - 1 is OK*)
+    				supers = supers[[ ;; classPosition[[1,1]] - 1 ]];
     				,
     				(*useful in the .super[superClass] where superClass doesn't belong to the inheritance tree*)
-    				supers = Flatten@{Supers[superClass],superClass}; 
+    				supers = Supers[class]; 
     			];
-    			
-    			redefineIndexedFunction[super,superClass,supers,{class,{params},function,{args}}]
-			];
+    		];
+    	];
+    	
+    	redefineFunction[super,supers,{class,{params},function,{args}}]
+	];
+	
+super /: class_Symbol[params___].super[superClass_].function_Symbol[args___] :=
+    Block[{supers,classPosition,mainClass,executedClass,resultFunction},
+    	
+		If[Length@{params} <= 1,
+    		mainClass = class;
+    		,
+    		mainClass = Last@{params};
+		];
+		
+		(*this allows to use mainClass if called from higher in the inheritance tree*)
+		supers = Flatten@{Supers[mainClass],mainClass};
+		
+		classPosition = cachedPosition[supers,superClass];
 			
-		ClearAll@SubClass;
-		SubClass::usage = "SubClass[superClass][class] checks if class is a sub class of superClass.";
-		g:SubClass[base_][sub_[___]|sub_]:= g = MemberQ[Append[Supers[sub],sub],base];
-		(*f[x_?(SubClass[BaseClass])]:=x*)
-	);
-resetSubSuper[];
-
-ResetClasses[class_:All]:=
-	(
-		(*many things are cached we need to reset them*)
-		MTools`Utils`Utils`DeleteCachedValues[
-			{
-				stringObjectFunctions,getFunctionSymbol,nonObjectRules,
-				cachedPosition,findFunction,objectFunctions,FunctionQ
-			}
-		];
-		
-		resetSubSuper[];
-		
-		(*In order to put again the special rules at the top and bottom of UpValues@class*)
-		If[class === All,
-			InitializeClass /@ Keys@$StaticAssociation;
+		If[classPosition =!= {},
+			(*supers from the point of view of superClass in the inheritance tree of Last@classStack,
+			including superClass*)
+			supers = supers[[ ;;classPosition[[1,1]] ]];
 			,
-			InitializeClass@class;
+			(*useful in the .super[superClass] where superClass doesn't belong to the inheritance tree*)
+			supers = Flatten@{Supers[superClass],superClass}; 
 		];
-	);
-
+		
+		redefineIndexedFunction[super,superClass,supers,{class,{params},function,{args}}]
+	];
 (*
 Example
 x=NewClass[]
@@ -556,6 +524,26 @@ zz.f[]
 zz.super.f[]
 zz.super[x].f[]
 *)
+
+ResetClasses[class_:All]:=
+	(
+		(*many things are cached we need to reset them*)
+		MTools`Utils`Utils`DeleteCachedValues[
+			{
+				stringObjectFunctions,getFunctionSymbol,nonObjectRules,
+				cachedPosition,findFunction,objectFunctions,FunctionQ
+			}
+		];
+		
+		MTools`Utils`Utils`DeleteCachedSubValues[SubClass];
+		
+		(*In order to put again the special rules at the top and bottom of UpValues@class*)
+		If[class === All,
+			InitializeClass /@ Keys@$StaticAssociation;
+			,
+			InitializeClass@class;
+		];
+	);
 (* ::Subsubsection:: *)
 (* ::Subsubsection:: *)
 (* Class aux functions*)	
@@ -751,6 +739,10 @@ GetAllArguments[class_]:=GetArguments[class]//Values//Flatten//DeleteDuplicates/
 ClearAll@FunctionQ;
 FunctionQ[class_[___],functionName_]:= FunctionQ[class,functionName];
 g:FunctionQ[class_,functionName_]:= g = MemberQ[stringObjectFunctions[class],functionName];
+
+SubClass::usage = "SubClass[superClass][class] checks if class is a sub class of superClass.";
+g:SubClass[base_][sub_[___]|sub_]:= g = MemberQ[Append[Supers[sub],sub],base];
+(*f[x_?(SubClass[BaseClass])]:=x*)
 
 ObjectSet[_Symbol[symbol_]|symbol_,key_,value_]:= symbol[key] = value;
 
