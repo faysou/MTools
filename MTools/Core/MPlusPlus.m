@@ -394,6 +394,8 @@ InitializeClass[class_]:=
 	(
 		SetAttributes[class,HoldFirst];
 		
+		UpValues[class] = Select[UpValues[class],FreeQ[#,sub|super]&];
+		
 		(*we execute and cache this expensive function at definition time*)
 		stringObjectFunctions[class];
 		
@@ -559,26 +561,24 @@ redefineFunction[auxSymbol_,classList_,{class_,{params___},function_,{args___}}]
 			Message[auxSymbol::noFct,class,SymbolName@function];
 			HoldComplete[class[params].auxSymbol.function[args]]
 			,
-			Switch[Length@{params},
-				0,
-					(*we add a dummy object for a static function that doesn't need an object*)
-					With[{executedClass = executedClass,funct = resultFunction}, 
+			With[{executedClass = executedClass,funct = resultFunction},
+				Switch[Length@{params},
+					0,
+						(*we add a dummy object for a static function that doesn't need an object*)
 				  		class /: class[].auxSymbol.function[arguments___] := 
 				  			executeThisFunction[executedClass,funct,executedClass[_,class].funct[arguments]];
-				  	];
-				,
-				1,
-					With[{executedClass = executedClass,funct = resultFunction}, 
+					,
+					1,
 				  		class /: class[o_].auxSymbol.function[arguments___] := 
 				  			executeThisFunction[executedClass,funct,executedClass[o,class].funct[arguments]];
-				  	];
-			  	,
-				_,
-					With[{executedClass = executedClass,funct = resultFunction,mainClass = Last@{params}}, 
-			  			class /: class[o_,classStack___,mainClass].auxSymbol.function[arguments___] :=
-			  				executeThisFunction[executedClass,funct,executedClass[o,class,classStack,mainClass].funct[arguments]];
-			  		];	
-			];   		
+				  	,
+					_,
+						With[{mainClass = Last@{params}}, 
+				  			class /: class[o_,classStack___,mainClass].auxSymbol.function[arguments___] :=
+				  				executeThisFunction[executedClass,funct,executedClass[o,class,classStack,mainClass].funct[arguments]];
+				  		];	
+				];   
+			];		
 	  			
 	  		class[params].auxSymbol.function[args]
 		]
@@ -594,26 +594,24 @@ redefineIndexedFunction[auxSymbol_,indexClass_,classList_,{class_,{params___},fu
 			Message[auxSymbol::noFct,class,SymbolName@function];
 			HoldComplete[class[params].auxSymbol[indexClass].function[args]]
 			,
-			Switch[Length@{params},
-				0,
-					(*we add a dummy object for a static function that doesn't need an object*)
-					With[{executedClass = executedClass,funct = resultFunction}, 
+			With[{executedClass = executedClass,funct = resultFunction}, 
+				Switch[Length@{params},
+					0,
+						(*we add a dummy object for a static function that doesn't need an object*)
 						class /: class[].auxSymbol[indexClass].function[arguments___] := 
 							executeThisFunction[executedClass,funct,executedClass[_,class].funct[arguments]];
-					];
-				,
-				1,
-					With[{executedClass = executedClass,funct = resultFunction}, 
+					,
+					1,
 						class /: class[o_].auxSymbol[indexClass].function[arguments___] := 
 							executeThisFunction[executedClass,funct,executedClass[o,class].funct[arguments]];
-					];
-				,
-				_,
-					With[{executedClass = executedClass,funct = resultFunction,mainClass = Last@{params}}, 
-						class /: class[o_,classStack___,mainClass].auxSymbol[indexClass].function[arguments___] := 
-							executeThisFunction[executedClass,funct,executedClass[o,class,classStack,mainClass].funct[arguments]];
-					];	
-			];  		
+					,
+					_,
+						With[{mainClass = Last@{params}}, 
+							class /: class[o_,classStack___,mainClass].auxSymbol[indexClass].function[arguments___] := 
+								executeThisFunction[executedClass,funct,executedClass[o,class,classStack,mainClass].funct[arguments]];
+						];	
+				];  
+			];		
 			  			
 			class[params].auxSymbol[indexClass].function[args]
 		]
@@ -872,28 +870,43 @@ BaseClass.initData[options_]:=
 
 (*setItem and getItem can be oveloaded, and take a string as key*)
 Unprotect[Dot];
-Dot /: Set[Dot[object_,key_],value_] := object.setItemAux[key,value];
-Dot /: AddTo[Dot[object_,key_],value_] := object.addToItemAux[key,value];
-Dot /: TimesBy[Dot[object_,key_],value_] := object.multiplyByItemAux[key,value];
+Dot /: Set[Dot[object_,key_],value_] := fastSet[object,key,value];
+Dot /: AddTo[Dot[object_,key_],value_] := fastAddTo[object,key,value];
+Dot /: TimesBy[Dot[object_,key_],value_] := fastTimesBy[object,key,value];
 Protect[Dot];
 
 BaseClass /: BaseClass[object_Symbol,___].getItem[key_]:= object[MTools`Utils`Utils`GetSymbolName@key];
 
-BaseClass.setItemAux[HoldPattern[Dot[keys__]],value_]:=
+fastSet[_[object_,___],HoldPattern[Dot[keys__]],value_]:=
+	fastSet[
+		Fold[#1[MTools`Utils`Utils`GetSymbolName@#2]&,object,Most@{keys}],
+		Last@{keys},
+		value
+	];
+fastSet[_[object_,___],key_,value_]:= object[MTools`Utils`Utils`GetSymbolName@key] = value;
+(*BaseClass.setItemAux[HoldPattern[Dot[keys__]],value_]:=
 	Fold[#1[MTools`Utils`Utils`GetSymbolName@#2]&,o,Most@{keys}].set[MTools`Utils`Utils`GetSymbolName@Evaluate@Last@{keys},value];
-BaseClass /: BaseClass[object_Symbol,___].setItemAux[key_,value_] := object[MTools`Utils`Utils`GetSymbolName@key] = value;
+BaseClass /: BaseClass[object_Symbol,___].setItemAux[key_,value_] := object[MTools`Utils`Utils`GetSymbolName@key] = value;*)
 (*BaseClass.setItemAux[HoldPattern[Dot[keys__]],value_]:=
 	Fold[#1.getItem[#2]&,o,Most@{keys}].setItem[MTools`Utils`Utils`GetSymbolName@Evaluate@Last@{keys},value];
 BaseClass.setItemAux[key_,value_] := o.setItem[MTools`Utils`Utils`GetSymbolName@key,value];
 BaseClass.setItem[key_,value_] := o.set[key,value];*)
 
-BaseClass.addToItemAux[HoldPattern[Dot[keys__]],value_]:=
-	Fold[#1[MTools`Utils`Utils`GetSymbolName@#2]&,o,Most@{keys}].addToField[MTools`Utils`Utils`GetSymbolName@Evaluate@Last@{keys},value];
-BaseClass.addToItemAux[key_,value_] := o.addToField[MTools`Utils`Utils`GetSymbolName@key,value];
+fastAddTo[_[object_,___],HoldPattern[Dot[keys__]],value_]:=
+	fastAddTo[
+		Fold[#1[MTools`Utils`Utils`GetSymbolName@#2]&,object,Most@{keys}],
+		Last@{keys},
+		value
+	];
+fastAddTo[_[object_,___],key_,value_]:= object[MTools`Utils`Utils`GetSymbolName@key] += value;
 
-BaseClass.multiplyByItemAux[HoldPattern[Dot[keys__]],value_]:=
-	Fold[#1[MTools`Utils`Utils`GetSymbolName@#2]&,o,Most@{keys}].multiplyByField[MTools`Utils`Utils`GetSymbolName@Evaluate@Last@{keys},value];
-BaseClass.multiplyByItemAux[key_,value_] := o.multiplyByField[MTools`Utils`Utils`GetSymbolName@key,value];
+fastTimesBy[_[object_,___],HoldPattern[Dot[keys__]],value_]:=
+	fastTimesBy[
+		Fold[#1[MTools`Utils`Utils`GetSymbolName@#2]&,object,Most@{keys}],
+		Last@{keys},
+		value
+	];
+fastTimesBy[_[object_,___],key_,value_]:= object[MTools`Utils`Utils`GetSymbolName@key] *= value;
 (*x=New[GenericClass][]
 x.a=New[GenericClass][]
 x.a.b=New[GenericClass][]
@@ -949,32 +962,32 @@ BaseClass /: BaseClass[object_Symbol,___].setKeys[asscociationField__,keys_,valu
 BaseClass /: BaseClass[object_Symbol,___].getValues[asscociationField__]:= Values[object[asscociationField]];
 BaseClass /: BaseClass[object_Symbol,___].lookup[asscociationField__,keys_]:= Lookup[object[asscociationField],keys];
 BaseClass /: BaseClass[object_Symbol,___].keyTake[asscociationField__,keys_]:= KeyTake[object[asscociationField],keys];
-BaseClass.keySort[asscociationField__]:= o.setKey[asscociationField,KeySort[o[asscociationField]]];
-BaseClass.keyExistsQ[asscociationField__,key_]:= KeyExistsQ[o[asscociationField],key];
-BaseClass.appendTo[listField__,value_]:= o.setKey[listField,Append[o[listField],value]];
-BaseClass.prependTo[listField__,value_]:= o.setKey[listField,Prepend[o[listField],value]];
-BaseClass.insertTo[listField__,value_,position_]:= o.setKey[listField,Insert[o[listField],value,position]];
-BaseClass.prependJoin[listField__,value_]:= o.setKey[listField,Join[value,o[listField]]];
-BaseClass.appendJoin[listField__,value_]:= o.setKey[listField,Join[o[listField],value]];
+BaseClass /: BaseClass[object_Symbol,___].keySort[asscociationField__]:= object[asscociationField] = KeySort[object[asscociationField]];
+BaseClass /: BaseClass[object_Symbol,___].keyExistsQ[asscociationField__,key_]:= KeyExistsQ[object[asscociationField],key];
+BaseClass /: BaseClass[object_Symbol,___].appendTo[listField__,value_]:= object[listField] = Append[object[listField],value];
+BaseClass /: BaseClass[object_Symbol,___].prependTo[listField__,value_]:= object[listField] = Prepend[object[listField],value];
+BaseClass /: BaseClass[object_Symbol,___].insertTo[listField__,value_,position_]:= object[listField] = Insert[object[listField],value,position];
+BaseClass /: BaseClass[object_Symbol,___].prependJoin[listField__,value_]:= object[listField] = Join[value,object[listField]];
+BaseClass /: BaseClass[object_Symbol,___].appendJoin[listField__,value_]:= object[listField] = Join[object[listField],value];
 BaseClass /: BaseClass[object_Symbol,___].setPart[part__,value_]:= object[[part]] = value;
 BaseClass /: BaseClass[object_Symbol,___].getPart[part__]:= object[[part]];
-BaseClass.isEmpty[listOrAssociationField__]:= Normal@o[listOrAssociationField] === {};
+BaseClass /: BaseClass[object_Symbol,___].isEmpty[listOrAssociationField__]:= Normal@object[listOrAssociationField] === {};
 
-BaseClass.deleteCases[listField__,pattern__]:= o.setKey[listField,DeleteCases[o[listField],pattern]];
-BaseClass.position[listField__,pattern__]:= Position[o[listField],pattern];
-BaseClass.deleteDuplicates[listField__,test_:SameQ]:= o.setKey[listField,DeleteDuplicates[o[listField],test]];
-BaseClass.cases[listField__,pattern_]:= Cases[o[listField],pattern];
-BaseClass.selectField[listField__,test_]:= Select[o[listField],test];
+BaseClass /: BaseClass[object_Symbol,___].deleteCases[listField__,pattern__]:= object[listField] = DeleteCases[object[listField],pattern];
+BaseClass /: BaseClass[object_Symbol,___].position[listField__,pattern__]:= Position[object[listField],pattern];
+BaseClass /: BaseClass[object_Symbol,___].deleteDuplicates[listField__,test_:SameQ]:= object[listField] = DeleteDuplicates[object[listField],test];
+BaseClass /: BaseClass[object_Symbol,___].cases[listField__,pattern_]:= Cases[object[listField],pattern];
+BaseClass /: BaseClass[object_Symbol,___].selectField[listField__,test_]:= Select[object[listField],test];
 
 BaseClass.thread[fun_[lists___]]:= MapThread[o.fun[##]&,{lists}];
 BaseClass.through[funs_]:= o.#& /@ funs;
 BaseClass.apply[f_[{list___}]]:= o.f[list];
 BaseClass.excuteFunction[f_]:= f[o];
 
-BaseClass.addToField[field__,value_]:= o.setKey[field,o[field]+value];
-BaseClass.multiplyByField[field__,value_]:= o.setKey[field,o[field]*value];
-BaseClass.increment[field__]:= o.addToField[field,1];
-BaseClass.decrement[field__]:= o.addToField[field,-1];
+BaseClass /: BaseClass[object_Symbol,___].addToField[field__,value_]:= object[field] += value;
+BaseClass /: BaseClass[object_Symbol,___].multiplyByField[field__,value_]:= object[field] *= value;
+BaseClass /: BaseClass[object_Symbol,___].increment[field__]:= object[field] += 1;
+BaseClass /: BaseClass[object_Symbol,___].decrement[field__]:= object[field] -= 1;
 
 BaseClass.maxIndex[list_]:= Ordering@list // Last;
 BaseClass.minIndex[list_]:= Ordering@list // First;
