@@ -394,7 +394,7 @@ InitializeClass[class_]:=
 	(
 		SetAttributes[class,HoldFirst];
 		
-		UpValues[class] = Select[UpValues[class],FreeQ[#,sub|super]&];
+		UpValues[class] = Select[UpValues[class],FreeQ[#[[1]],sub|super]&];
 		
 		(*we execute and cache this expensive function at definition time*)
 		stringObjectFunctions[class];
