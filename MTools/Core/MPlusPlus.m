@@ -30,13 +30,13 @@ $ObjectSymbol::usage = "$ObjectSymbol contains the symbol used to represent the 
 objectHold::usage = "objectHold contains the symbol used by $ObjectSymbol, by default $ObjectSymbol == objectHold[o].";
 
 FunctionQ::usage = "FunctionQ[class,functionName] tests if the function functionName is implemented in class.";
-ObjectSet::usage = "ObjectSet[object,key,value] is a way to set a key/value to an object or a symbol.";
+objectSet::usage = "objectSet[object,key,value] is a way to set a key/value to an object or a symbol.";
 CopySymbol::usage = "CopySymbol[object] return a copy of an object.";
 ClearObject::usage = "ClearObject[object] clears the object.";
 
 BaseClass::usage = "BaseClass is the class inherited by any class by default that contains basic functions like setters and getters for common cases.";
 (*functions with HoldX attribute should be exported so that the exact symbol is used instead of another symbol*)
-{setKeyDelayed,cacheFunction,staticCacheFunction,getItem};
+{setKeyDelayed,cacheFunction,staticCacheFunction};
 
 GetFunctions::usage = "GetFunctions[class] returns an association of all the functions of class associated to each of its super classes.";
 GetAllFunctions::usage = "GetAllFunctions[class] returns all functions of class.";
@@ -105,7 +105,13 @@ PrintSymbol::usage = "PrintSymbol[symbol,fieldsExcluded] displays the symbol nam
 UpKeys::usage = "UpKeys[symbol] returns the symbols acting on symbol as UpValues.";
 KeyQ::usage = "KeyQ[object,key] returns True if key is a member of object.";
 UpKeyQ::usage = "UpKeyQ[symbol,key] == True if key[symbol] is an UpValue of symbol.";
-UpdateRules::usage= "UpdateRules[symbol, newRules, updateSymbolRulesOnly]";
+UpdateRules::usage= "UpdateRules[symbol, newRules, updateSymbolRulesOnly]"
+
+OGet::usage = "OGet[object,keys__] is a fast way to access any part of an object.";
+OSet::usage = "OSet[object,keys__,value] is a fast way to set any part of an object."
+OAddTo::usage = "OAddTo[object,keys__,value]";
+OMultiplyBy::usage = "OMultiplyBy[object,keys__,value]";
+OIncrement::usage = "OIncrement[object,keys__]";
 (* ::Subsubsection:: *)
 Begin["`Private`"]
 (* ::Subsubsection:: *)
@@ -355,6 +361,9 @@ prependToUpValues[symbol_,newRule_]:=
 		UpValues[symbol]=Flatten@{newRule,currentRules};
 	];
 	
+(*non virtual functions (that don't use sub) can be added for speed reason if their rule is before the sub special rule.
+The function name of such function must be exported though, as there is no reconciliation mechanism, 
+it's a normal UpValues function*)
 addSpecialRules[class_]:=
 	(		
 		(*We want a high priority for this rule, a function by default calls sub*)
@@ -737,7 +746,13 @@ SubClass::usage = "SubClass[superClass][class] checks if class is a sub class of
 g:SubClass[base_][sub_[___]|sub_]:= g = MemberQ[Append[Supers[sub],sub],base];
 (*f[x_?(SubClass[BaseClass])]:=x*)
 
-ObjectSet[_Symbol[symbol_]|symbol_,key_,value_]:= symbol[key] = value;
+objectSet[_Symbol[symbol_]|symbol_,key_,value_]:= symbol[key] = value;
+
+OGet[_[object_,___],keys__]:= object[[keys]];
+OSet[_[object_,___],keys__,value_]:= object[[keys]] = value;
+OAddTo[_[object_,___],keys__,value_]:= object[[keys]] += value;
+OMultiplyBy[_[object_,___],keys__,value_]:= object[[keys]] *= value;
+OIncrement[_[object_,___],keys__]:= object[[keys]]++;
 
 SetAttributes[ClearObject, Listable];
 ClearObject[_[symbol_,___]|symbol_]:=ClearAll[symbol];
@@ -828,7 +843,7 @@ BaseClass[object_,___][key_] := object[key];
 BaseClass[object_,___][keys__] := Fold[#1[#2]&,object,{keys}];
 
 (*implementations should be in class functions in order to benefit from inheritance*)
-(*BaseClass.(key:Except[sub|super|this,_Symbol|_String]):= o.getItem[key];*)
+(*getItem rule*)
 BaseClass /: BaseClass[object_Symbol,___].(key:Except[sub|super|this,_Symbol|_String]):= object[MTools`Utils`Utils`GetSymbolName@key];
 SameQ[o_BaseClass,x__]^:= AllTrue[{x},o.sameQ[#]&];
 UnsameQ[o_BaseClass,x_]^:= !SameQ[o,x]; 
@@ -843,7 +858,7 @@ BaseClass /: BaseClass[object_Symbol,___].set[keys_List,values_List] /; Length@k
 BaseClass.set[keys_List,value_] := o.set[keys,ConstantArray[value,Length@keys]];
 BaseClass.set[keys__,lastKey_,value_] := o[keys].set[lastKey,value];
 BaseClass /: BaseClass[object_Symbol,___].set[key_,value_] := object[key]=value; 
-SetField = #.set[#2,#3]&;
+SetField = (#1.#2 = #3)&;
 
 (*clear shouln't be overloaded whereas delete can be*)
 BaseClass.clear[]:= ClearObject[o];
@@ -868,45 +883,22 @@ BaseClass.initData[options_]:=
 		]
     ];
 
-(*setItem and getItem can be oveloaded, and take a string as key*)
 Unprotect[Dot];
-Dot /: Set[Dot[object_,key_],value_] := fastSet[object,key,value];
-Dot /: AddTo[Dot[object_,key_],value_] := fastAddTo[object,key,value];
-Dot /: TimesBy[Dot[object_,key_],value_] := fastTimesBy[object,key,value];
+(*faster than BaseClass.set as no need for method resolution*)
+Dot /: Set[Dot[object_,key_],value_] := fastOperation[object,key,value,Set];
+Dot /: AddTo[Dot[object_,key_],value_] := fastOperation[object,key,value,AddTo];
+Dot /: TimesBy[Dot[object_,key_],value_] := fastOperation[object,key,value,TimesBy];
 Protect[Dot];
 
-BaseClass /: BaseClass[object_Symbol,___].getItem[key_]:= object[MTools`Utils`Utils`GetSymbolName@key];
-
-fastSet[_[object_,___],HoldPattern[Dot[keys__]],value_]:=
-	fastSet[
+fastOperation[_[object_,___],HoldPattern[Dot[keys__]],value_,operation_]:=
+	fastOperation[
 		Fold[#1[MTools`Utils`Utils`GetSymbolName@#2]&,object,Most@{keys}],
 		Last@{keys},
-		value
+		value,
+		operation
 	];
-fastSet[_[object_,___],key_,value_]:= object[MTools`Utils`Utils`GetSymbolName@key] = value;
-(*BaseClass.setItemAux[HoldPattern[Dot[keys__]],value_]:=
-	Fold[#1[MTools`Utils`Utils`GetSymbolName@#2]&,o,Most@{keys}].set[MTools`Utils`Utils`GetSymbolName@Evaluate@Last@{keys},value];
-BaseClass /: BaseClass[object_Symbol,___].setItemAux[key_,value_] := object[MTools`Utils`Utils`GetSymbolName@key] = value;*)
-(*BaseClass.setItemAux[HoldPattern[Dot[keys__]],value_]:=
-	Fold[#1.getItem[#2]&,o,Most@{keys}].setItem[MTools`Utils`Utils`GetSymbolName@Evaluate@Last@{keys},value];
-BaseClass.setItemAux[key_,value_] := o.setItem[MTools`Utils`Utils`GetSymbolName@key,value];
-BaseClass.setItem[key_,value_] := o.set[key,value];*)
+fastOperation[_[object_,___],key_,value_,operation_]:= operation[object[MTools`Utils`Utils`GetSymbolName@key],value];
 
-fastAddTo[_[object_,___],HoldPattern[Dot[keys__]],value_]:=
-	fastAddTo[
-		Fold[#1[MTools`Utils`Utils`GetSymbolName@#2]&,object,Most@{keys}],
-		Last@{keys},
-		value
-	];
-fastAddTo[_[object_,___],key_,value_]:= object[MTools`Utils`Utils`GetSymbolName@key] += value;
-
-fastTimesBy[_[object_,___],HoldPattern[Dot[keys__]],value_]:=
-	fastTimesBy[
-		Fold[#1[MTools`Utils`Utils`GetSymbolName@#2]&,object,Most@{keys}],
-		Last@{keys},
-		value
-	];
-fastTimesBy[_[object_,___],key_,value_]:= object[MTools`Utils`Utils`GetSymbolName@key] *= value;
 (*x=New[GenericClass][]
 x.a=New[GenericClass][]
 x.a.b=New[GenericClass][]
@@ -1407,7 +1399,7 @@ GetInput[prompt_,values_,defaults_,OptionsPattern[]]:=
 (*eventFunction[object,key,value] passed in "Callback" option*)
 (*eventFunction takes as arguments  the object, the key and a new dynamic value to be assigned*)
 SetAttributes[dynamicEvent,HoldFirst];
-dynamicEvent[object_,key_,None]:=ObjectSet[object,key,#]&;
+dynamicEvent[object_,key_,None]:=objectSet[object,key,#]&;
 dynamicEvent[object_,key_,eventFunctions_List]:=dynamicEvent[object,key,#]& /@ eventFunctions; (*for the case {fstart, f, fend}*)
 dynamicEvent[object_,key_,eventFunction_]:=eventFunction[object,key,#]&;
 
@@ -1884,7 +1876,7 @@ BuildParamTree[object_,key_,eventFunction_,tree_,selectBarType_,numberOfOpenedLe
 	                Dynamic[
 	                    object[key]
 	                    ,
-	                    (ObjectSet[object,key,#];eventFunction[object,key][0])&
+	                    (objectSet[object,key,#];eventFunction[object,key][0])&
 	                ]
 	                ,
 	                tree[[2]]
@@ -1922,7 +1914,7 @@ GetInterfaceElement[object_,{key_String,"ValuesSelector",opts:OptionsPattern[Get
 			    {
 			        Label
 			        ,
-					valuesObject.show[(ObjectSet[object,key,#])&]
+					valuesObject.show[(objectSet[object,key,#])&]
 			    }
 			]
 		]

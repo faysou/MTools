@@ -65,7 +65,8 @@ Begin["`Private`"]
 
 nameRule=((__~~"`")...)~~Shortest[x__]~~(("$"~~__)...)~~(("_")...) :> x;
 SetAttributes[GetSymbolName,HoldFirst];
-g:GetSymbolName[symbol_String]:= g = symbol;
+GetSymbolName[symbol_String]:= symbol;
+GetSymbolName[Verbatim[Pattern][x_, _]]:= GetSymbolName@x;
 g:GetSymbolName[symbol_] := g = StringReplace[ToString@HoldForm@symbol,nameRule];
 
 SetAttributes[DeleteCachedValues,Listable];
