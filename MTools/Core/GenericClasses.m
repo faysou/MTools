@@ -36,8 +36,6 @@ $o;
 
 ValueObject::usage = "ValueObject  "
 ValuesSelector::usage = "ValuesSelector  ";
-Queue::usage = "Queue  ";
-Heap::usage = "Heap  "
 
 Begin["`Private`"] (* Begin Private Context *) 
 (* ::Subsection:: *)
@@ -53,8 +51,8 @@ $emptyElement = "-";
 (* ::Subsubsection:: *)
 (* 		GenericClass/SelectedClass *)
 SelectedClass = NewClass["Fields" ->{"Selected"->True,"Editable"->False}];
-SelectedClass.select[value_]:= o.set["Selected",value];
-SelectedClass.edit[value_]:= o.set["Editable",value];
+SelectedClass.select[value_]:= o."Selected" = value;
+SelectedClass.edit[value_]:= o."Editable" = value;
 (* ::Subsubsection:: *)
 (* ::Subsubsection:: *)
 (* 		GenericClass/Declaration *)
@@ -72,14 +70,14 @@ GenericClass=
 GenericClass.init[options_]:=
 	(
 		If[o["Journal"] === {},
-			o.set["Journal",Association[]];	
+			o."Journal" = Association[];	
 		];
 		
 		o.setIdIfNotDef[options];
 		
 		$GenericObjects[o["Id"]]=Identity@o;
 		
-		o.set["SelectedObject",New[SelectedClass][]];
+		o."SelectedObject" = New[SelectedClass][];
 	);
 GenericClass.toString[]:= o["Id"];
 (* ::Subsubsection:: *)
@@ -90,8 +88,8 @@ GenericClass.getTreeId[]:= ToString@Mod[$treeId++,10]; (*not necessary, as creat
 GenericClass.getId[]:= o["ObjectType"]~~"_"~~(o.getIdDate[]);(*~~"_"~~(o.getTreeId[])*)
 GenericClass.setId[]:=
 	(	
-		o.set["Id",o.getId[]];
-		o.set["CreatedDate",CouchDate[]];
+		o."Id" = o.getId[];
+		o."CreatedDate" = CouchDate[];
 	);
 GenericClass.setIdIfNotDef[options_]:=
 	If[o.getOption[options,"Id"]==="",
@@ -120,7 +118,7 @@ GenericClass.executeIf[condition_]:=
 		,
 		$Failed
 	]; (*to be used as o.iterate[executeIf[#["Status"]!="Filled"&].g[]]*)
-GenericClass.setField[field_,value_]:= o.set[field,value];
+GenericClass.setField[field_,value_]:= o.field = value;
 GenericClass.hasParent[]:= o["Parent"] =!= None;
 GenericClass.getRoot[condition_:(True &)]:=
 	If[o.hasParent[] && condition@o["Parent"],
@@ -144,6 +142,7 @@ GenericClass.removeFromAssociation[id_:"Symbol",assoc_:"Symbols"]:=
 	];
 SetAttributes[{iterate,iterateAssociation,upIterate},HoldFirst];
 Options[iterate] = {"Condition"->(True&),"CarryTreeResult"->False,"Field"->"Components","ExternalIterate"->False};
+FinalFunctionBlock[
 GenericClass.iterate[fun_,opts:OptionsPattern[iterate]]:= 
 	Block[{iterationResult,condition,carryTreeResult,componentsList},
 		
@@ -178,6 +177,7 @@ GenericClass.iterate[fun_,opts:OptionsPattern[iterate]]:=
 			iterationResult
 		]
 	];
+];
 Options[upIterate] = {"Condition"->(True&),"ExternalIterate"->False};
 GenericClass.upIterate[fun_,opts:OptionsPattern[upIterate]]:=
 	Block[{iterationResult,condition,carryTreeResult,componentsList},
@@ -361,14 +361,14 @@ GenericClass.notify[]:=
 	(
 		(*changing one property of an object causes it to refresh in a table, as the
 		data association is tracked in Dynamic with TrackObject*)
-		o.set["TickNotify",!TrueQ@o["TickNotify"]];
+		o."TickNotify" = !TrueQ@o["TickNotify"];
 	);
 GenericClass.getInputField[field_,{settings___}]:= 
 	CustomInputField[
 		TrackObject[{o},
 			o[field]
 			,
-			o.set[field,#]&
+			(o.field = #)&
 		]
 		,
 		settings
@@ -448,7 +448,7 @@ GenericClass.copy[]:=
 		copiedComponent = o.super.copy[];
 		copiedComponent.setId[];
 		
-		copiedComponent.set["SelectedObject",o["SelectedObject"].copy[]];
+		copiedComponent."SelectedObject" = o["SelectedObject"].copy[];
 		
 		copiedComponent
 	];
@@ -482,7 +482,7 @@ GenericClass.moveUp[]:=
 			
 			If[objectPosition > 1,
 				permutate[parentComponents,objectPosition,objectPosition-1];
-				o["Parent"].set["Components",parentComponents];
+				o["Parent"]."Components" = parentComponents;
 				o["Parent"].setComponentIds[];
 			];
 		];
@@ -496,7 +496,7 @@ GenericClass.moveDown[]:=
 			
 			If[objectPosition < Length@parentComponents,
 				permutate[parentComponents,objectPosition,objectPosition+1];
-				o["Parent"].set["Components",parentComponents];
+				o["Parent"]."Components" = parentComponents;
 				o["Parent"].setComponentIds[];
 			];
 		];
@@ -521,7 +521,7 @@ GenericClass.load[fileName_]:=
 		$SavedObjects = Import[fileName] // Uncompress;
 		o.createObjectFromAssociation[$SavedObjects]
 	);
-GenericClass.setLocalSave[value_]:= o.set["LocalSave",value]; 
+GenericClass.setLocalSave[value_]:= o."LocalSave" = value; 
 GenericClass.getIdFields[]:= {"ObjectType"};
 GenericClass.getSavedFields[fieldsField_:"ObjectSavedFields"]:= 
 	If[o["LocalSave"] && o.fieldExistsQ["Local"~~fieldsField],
@@ -840,7 +840,7 @@ GenericClass.getObservers[key_]:=$Observers[o["Refs",key]];
 (* 		GenericClass/ValueObject *)
 GenericClass.createValue[fields_List]:= o.thread[createValue[fields]];
 GenericClass.createValue[field_->value_]:= o.createValue[field,value];
-GenericClass.createValue[field_,value_:None]:= o.set[field,New[ValueObject]["Value"->value]];
+GenericClass.createValue[field_,value_:None]:= o.field = New[ValueObject]["Value"->value];
 GenericClass.setValue[values_List]:= o.thread[setValue[values[[All,1]],values[[All,2]]]];
 GenericClass.setValue[field_,value_]:= o.set[field,"Value",value];
 GenericClass.resetValue[fields_List]:= o.thread[resetValue[fields]];
@@ -932,26 +932,24 @@ PropertiesCheckboxBar.init[_]:= (*Model*)
 		o.createValue[{"SelectedVariables","AllSelected"}];
 		
 		(*Labels*)
-		o.set["PropertiesLabels",o["Properties"][[All,3]]];
+		o."PropertiesLabels" = o["Properties"][[All,3]];
 		
 		(*Association to easily get the specifications of a property by its label*)
-		o.set["PropertiesByLabel",AssociationThread[o["PropertiesLabels"]->o["Properties"]]];
+		o."PropertiesByLabel" = AssociationThread[o["PropertiesLabels"]->o["Properties"]];
 		
 		(*Display of FullLabel (ShortcutLabel) when they are different*)
-		o.set["DisplayedPropertiesLabels",
-			Thread[
-				o["PropertiesLabels"] -> 
-				MapThread[
-					If[#1 != #2,
-						#2 ~~ " (" ~~ #1 ~~ ")"
-						,
-						#2
-					]&
-					,
-					{o["PropertiesLabels"],o["Properties"][[All,2]]}
-				]
-			]
-		];
+		o."DisplayedPropertiesLabels" = Thread[
+		     	o["PropertiesLabels"] -> 
+		     	MapThread[
+		     		If[#1 != #2,
+		     			#2 ~~ " (" ~~ #1 ~~ ")"
+		     			,
+		     			#2
+		     		]&
+		     		,
+		     		{o["PropertiesLabels"],o["Properties"][[All,2]]}
+		     	]
+		     ];
 		
 		(*We initialize the state variables*)
 		o.updateSelectedProperties[];
@@ -1073,7 +1071,7 @@ GenericGroup.init[options_]:=
 (* ::Subsubsection:: *)
 (* 		GenericGroup/Id *)
 GenericGroup.getId[]:=o["ObjectType"]~~"_"~~o["Type"]~~"_"~~(o.getIdDate[]);
-GenericGroup.setComponentIds[]:= o.set["ComponentIds",o.iterate[get["Id"]]];
+GenericGroup.setComponentIds[]:= o."ComponentIds" = o.iterate[get["Id"]];
 (* ::Subsubsection:: *)
 (* ::Subsubsection:: *)
 (* 		GenericGroup/Tree functions *)
@@ -1115,7 +1113,7 @@ GenericGroup.appendToComponents[newComponent_,setCompIds_:True]:=
 GenericGroup.appendComponent[newComponent_,setComponentIds_:True]:=
 	(
 		o.appendToComponents[newComponent,setComponentIds];
-		newComponent.set["Parent",o];
+		newComponent."Parent" = o;
 		
 		newComponent
 	);
@@ -1150,7 +1148,7 @@ GenericGroup.prependToComponents[newComponent_,setCompIds_:True]:=
 GenericGroup.prependComponent[newComponent_,setComponentIds_:True]:=
 	(
 		o.prependToComponents[newComponent,setComponentIds];
-		newComponent.set["Parent",o];
+		newComponent."Parent" = o;
 		
 		newComponent
 	);
@@ -1188,7 +1186,7 @@ GenericGroup.removeComponentFromAssociation[id_,opts:OptionsPattern[removeCompon
 	];
 GenericGroup.clearComponents[]:= 
 	(
-		o.set["Components",{}];
+		o."Components" = {};
 		o.setComponentIds[];
 	);
 GenericGroup.delete[]:= o.superIterate[delete[],"TraversalOrder"->"Postfix"];
@@ -1205,6 +1203,7 @@ GenericGroup.componentsThread[fun_[otherArgs___,list_]]:= MapThread[#1.fun[other
 superIterate::unknownTraversal = "`1` is an unknown TraversalOrder option.";
 SetAttributes[{superIterate,selfIterate},HoldFirst];
 Options[superIterate] = Join[Options[iterate],{"SuperClass"->Automatic,"TraversalOrder"->"Prefix"(*or "Postfix"*)}];
+FinalFunctionBlock[
 GenericGroup.superIterate[fun_,opts:OptionsPattern[superIterate]]:= 
 	Block[{superClass,superResult,iterationResult,traversalOrder},
 
@@ -1247,6 +1246,7 @@ GenericGroup.superIterate[fun_,opts:OptionsPattern[superIterate]]:=
 				Abort[];
 		]
 	];
+];
 GenericGroup.selfIterate[fun_,opts:OptionsPattern[superIterate]]:= o.superIterate[fun,"SuperClass"->None,opts];
 GenericGroup.treeIterate[fun_,opts:OptionsPattern[treeIterate]]:= 
 	Block[{nodeValue,treeValues,result,iterationResult,condition,traversalOrder},
@@ -1330,7 +1330,7 @@ GenericGroup.sortBy[{property_,propertyType_},increasing_:True]:=
 		o.iterate[sortBy[{property,propertyType},increasing],"Condition"->(SubClass[GenericGroup][#]&)];
 		
 		propertiesOrdered = o.iterate[displayValue[property,propertyType]] // Ordering // If[increasing,Identity,Reverse];
-		o.set["Components",o["Components"][[propertiesOrdered]]];
+		o."Components" = o["Components"][[propertiesOrdered]];
 		o.setComponentIds[];
 	];
 GenericGroup.getRecursiveField[field_,operation_]:= o.iterate[getRecursiveField[field,operation]] // operation;
@@ -1466,7 +1466,7 @@ GenericGroup.copy[]:=
 		copiedComponents = o.iterate[copy[]];
 		
 		newSpread = o.super.copy[];
-		newSpread.set["Components",copiedComponents];
+		newSpread."Components" = copiedComponents;
 		
 		o.setComponentIds[];
 		newSpread.setParentToChildren[];
@@ -1562,7 +1562,7 @@ GenericGroup.saveTreeToDb[collection_,opts:OptionsPattern[saveTreeToDb]]:=
 		
 		(*We want to create a new choice in the saved portfolios just if one component has been modified*)
 		If[recordSavedDate && o.isTreeModified[fieldsField],
-			o.set["CreatedDate",None];
+			o."CreatedDate" = None;
 		];
 		
 		(*If existingSavedDate is None, there will be no update, so it won't cause a bug*)
@@ -1658,12 +1658,11 @@ InitializeClass[GenericGroup];
 (* ::Subsection:: *)
 (* Data structures *)
 (* ::Subsubsection:: *)
-(* ::Subsubsection:: *)
 (* 		Data structures/ValueObject *)
 (*ValueObject can be seen as a pointer to a single value, useful for Dynamic, we can check if the 
 value is empty or display it, useful with TrackObject*)
 ValueObject = NewClass["Fields"->{"Value"}];
-ValueObject.reset[]:= o.set["Value",None];
+ValueObject.reset[]:= o."Value" = None;
 ValueObject.isEmpty[]:= o["Value"] === None;
 (* ::Subsubsection:: *)
 (* ::Subsubsection:: *)
@@ -1785,85 +1784,6 @@ ValuesSelector.show[callback_]:=
 			ItemSize->8								
 		]		
 	];	
-(* ::Subsubsection:: *)
-(* 		Data structures/Queue *)
-(*highest priority exits first*)
-Queue = NewClass["Fields"->{"Queue"->{},"UsePriority"->False,"MaxLength"->-1,"LeftToRight"->True}];
-Queue.reset[]:= o.set["Queue",{}];
-Queue.put[element_]:=
-	Module[{insertPosition,elementPriority},
-		If[o["UsePriority"] && KeyQ[element,"Priority"],
-			elementPriority = element["Priority"];
-			
-			insertPosition = 
-				If[o["LeftToRight"],
-					LengthWhile[o["Queue"],#["Priority"]<elementPriority&]
-					,
-					LengthWhile[o["Queue"],#["Priority"]>=elementPriority&]
-				];
-			
-			o.insertTo["Queue",element,insertPosition+1];
-			,
-			If[o["LeftToRight"],
-				o.prependTo["Queue",element];
-				,
-				o.appendTo["Queue",element];
-			];
-		];
-		
-		If[o["MaxLength"]>0 && Length@o["Queue"] > o["MaxLength"],
-			o.pop[]
-			,
-			element
-		]
-	];
-Queue.pop[]:=
-	Module[{element},
-		
-		If[Length@o["Queue"]>0,
-			
-			If[o["LeftToRight"],
-				element = Last@o["Queue"];
-				o.set["Queue",Most@o["Queue"]];
-				,
-				element = First@o["Queue"];
-				o.set["Queue",Rest@o["Queue"]];
-			];
-				
-			element
-			,
-			Missing["EmptyQueue"]	
-		]
-	];
-Queue.isEmptyQueue[]:= o["Queue"] === {};
-(* ::Subsubsection:: *)
-(* 		Data structures/Heap *)
-(*highest priority exits first*)
-Heap = NewClass["Fields"->{"Heap"->{},"UsePriority"->False}];
-Heap.reset[]:= o.set["Heap",{}];
-Heap.put[element_]:=
-	Module[{insertPosition,elementPriority},
-		If[o["UsePriority"] && KeyQ[element,"Priority"],
-			elementPriority = element["Priority"];
-			insertPosition = LengthWhile[o["Heap"],#["Priority"]<=elementPriority&];
-			o.insertTo["Heap",element,insertPosition+1];
-			,
-			o.appendTo["Heap",element];
-		];
-		
-		element
-	];
-Heap.pop[]:=
-	Module[{element},
-		If[Length@o["Heap"]>0,
-			element = Last@o["Heap"];
-			o.set["Heap",Most@o["Heap"]];
-			element
-			,
-			Missing["EmptyHeap"]	
-		]
-	];
-Heap.isEmptyHeap[]:= o["Heap"] === {};
 (* ::Subsubsection:: *)
 (* ::Subsection:: *)
 End[] (* End Private Context *)

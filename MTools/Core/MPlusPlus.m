@@ -112,31 +112,49 @@ OSet::usage = "OSet[object,keys__,value] is a fast way to set any part of an obj
 OAddTo::usage = "OAddTo[object,keys__,value]";
 OMultiplyBy::usage = "OMultiplyBy[object,keys__,value]";
 OIncrement::usage = "OIncrement[object,keys__]";
+
+$FinalFunctions::usage = " ";
+FinalFunctionBlock::usage = "FinalFunctionBlock[code]";
+SetFinalFunction::usage = "SetFinalFunction[class,f]";
+ClearFinalFunctions::usage = "ClearFinalFunctions[class]";
+
+(*for now they are alway exported*)
+$baseClassFinalFunctions=
+{set,clear,type,switchType,isType,data,flattenObject,objectQ,sameQ,initData,
+fieldExistsQ,get,deleteField,getFields,getFieldValues,fieldTake,addField,
+getStatic,setStatic,deleteStatic,deleteAllStatic,getSuperClass,getOption,
+clearList,clearAssociation,getKey,setKey,setKeyDelayed,deleteKey,renameKey,
+setKeys,getValues,lookup,keyTake,keySort,keyExistsQ,appendTo,prependTo,insertTo,prependJoin,
+appendJoin,setPart,getPart,isEmpty,deleteCases,position,deleteDuplicates,cases,selectField,thread,
+through,apply,excuteFunction,addToField,multiplyByField,increment,decrement,createHeldValue,
+setHeldValue,getHeldValue,deleteHeldValue,newTick,tickNotify,cacheFunction,staticCacheFunction,
+clearCacheFunction}
 (* ::Subsubsection:: *)
 Begin["`Private`"]
 (* ::Subsubsection:: *)
 (* Class *)
 Options[NewClass]={"Fields"->{},"Parents"->{},"InterfaceOrdering"->{}}
-NewClass /: Set[classSymbol_Symbol,NewClass[opts:OptionsPattern[]]] :=
+NewClass /: Set[class_Symbol,NewClass[opts:OptionsPattern[]]] :=
 	Module[{classProperties,parentClasses,interfaceOrdering},
 		
 		{classProperties,parentClasses,interfaceOrdering} = 
 			OptionValue[NewClass,{opts},#]& /@ {"Fields","Parents","InterfaceOrdering"};
 		
-		setupNewClass[classSymbol,classProperties];
+		setupNewClass[class,classProperties];
 		
-		inherit[classSymbol,parentClasses];
+		inherit[class,parentClasses];
 			
-		InterfaceOrdering[classSymbol] ^= 
+		InterfaceOrdering[class] ^= 
 			If[interfaceOrdering =!= {},
 				interfaceOrdering
 				,
 				{}
 			];
 	
-		Initialized[classSymbol] = False;
+		ClearFinalFunctions[class];
+		Initialized[class] = False;
 		
-		classSymbol
+		class
 	];
 
 SetAttributes[isOptionDuplicate,Orderless];
@@ -145,7 +163,7 @@ isOptionDuplicate[{x_->_,__},{x_->_,__}]:=True;
 isOptionDuplicate[{x_->_,__},x_->_]:=True;
 isOptionDuplicate[__]:=False;
 
-setupNewClass[classSymbol_,classOptions_]:=
+setupNewClass[class_,classOptions_]:=
     Module[{classOptionsOnly,interface,usedClassOptions,nonClassFields},
     	
     	(*we find nonClassFields, ie options that are not stored when an object is created,
@@ -186,7 +204,7 @@ setupNewClass[classSymbol_,classOptions_]:=
        
        	(*setting the class interface for displaying some fields in a custom way with EditSymbolPane and related functions*)
         interface=Cases[usedClassOptions,{paramName_->_,interfaceSpec__}:>{MTools`Utils`Utils`GetSymbolName@paramName,interfaceSpec}];
-        SetInterface[classSymbol,interface];
+        SetInterface[class,interface];
         
         (*assigning Options and ClassFields*)
     	classOptionsOnly=Replace[usedClassOptions,x_List:>x[[1]],{1}];
@@ -196,12 +214,12 @@ setupNewClass[classSymbol_,classOptions_]:=
     		
 	       	(*ClassFields are the arguments stored in an object at creation time, use
 	    	BaseClass.getOption for the non stored arguments*)
-    		ClassFields[classSymbol] ^= Complement[classOptionsOnly[[All,1]],nonClassFields];
+    		ClassFields[class] ^= Complement[classOptionsOnly[[All,1]],nonClassFields];
     		,
-    		ClassFields[classSymbol] ^= {};
+    		ClassFields[class] ^= {};
     	];
     	
-        Options[classSymbol] = classOptionsOnly;
+        Options[class] = classOptionsOnly;
     ];
 
 (*similar to https://www.python.org/download/releases/2.3/mro
@@ -238,15 +256,35 @@ $ObjectSymbol=objectHold@o;
 
 Unprotect[Dot];
 (*converting class.f[args]:=body to class /: o_class.f[args] := body*)
-Dot /: SetDelayed[Dot[classSymbol_Symbol,f_Symbol[args___]],body_] := defineObjectFunction[classSymbol,f,{args},body];
+Dot /: SetDelayed[Dot[class_Symbol,f_Symbol[args___]],body_] := defineObjectFunction[class,f,{args},body];
 Protect[Dot];
 
+If[!ValueQ@$FinalFunctions,
+	$FinalFunctions = Association[];
+];
+
+SetAttributes[FinalFunctionBlock,HoldFirst];
+FinalFunctionBlock[code_]:=
+	Block[{$isFinalFunction = True},
+		code	
+	];
+	
+ClearFinalFunctions[class_]:= KeyDropFrom[$FinalFunctions,Cases[Keys@$FinalFunctions,{class,_}]];
+	
+(*useful for defining final functions for function defined with TagSetDelayed directly*)
+SetAttributes[SetFinalFunction,Listable];
+SetFinalFunction[class_,f_]:= $FinalFunctions[{class,f}] = True;
+	
 (*function to automatically convert BaseClass.clear[] := ClearObject[o] to BaseClass /: o_BaseClass.clear[] := ClearObject[o]*)
 SetAttributes[defineObjectFunction,HoldAllComplete];
 defineObjectFunction[class_,f_,{args___},body_]:=
 	Block[{tagSetDelayed},
 		
 		SetAttributes[tagSetDelayed,HoldAllComplete];
+		
+		If[TrueQ@$isFinalFunction,
+			$FinalFunctions[{class,f}] = True;
+		];
 
 		With[{objectSymbol = $ObjectSymbol},
 			(*we need to rename TagSetDelayed in order to insert $ObjectSymbol*)
@@ -322,73 +360,6 @@ New[data_Association,newOpts:OptionsPattern[]][opts___] := New[{ToExpression@dat
 	
 New[][]:= New[BaseClass][];
 
-patternSignature[rule_]:=First@rule //. {Verbatim[Pattern][_,x_]:>x,Verbatim[Optional][x_,_]:>x};
-
-(*so that a class inherits functions like Keys[o_BaseClass]^:= o.getFields[] from its parent super classes*)
-inheritNonObjectFunctions[class_]:=
-	Block[{allNonObjectFunctions},
-		
-		allNonObjectFunctions = 
-			nonObjectRules[#] //. #->class & /@ Prepend[Reverse@Supers@class,class] // Flatten // 
-			DeleteDuplicates[#,(patternSignature@#1 === patternSignature@#2)&]&;
-			
-		UpValues@class = 
-			Join[
-				allNonObjectFunctions
-				,
-				DeleteCases[
-					UpValues@class
-					,
-					Verbatim /@ nonObjectRules[class] // Apply@Alternatives
-				]
-			];
-			
-		SubValues@class = 
-			SubValues@# //. #->class & /@ Prepend[Reverse@Supers@class,class] // Flatten // 
-			DeleteDuplicates[#,(patternSignature@#1 === patternSignature@#2)&]&;
-	];
-	
-appendToUpValues[symbol_,newRule_]:=
-	Module[{currentRules},
-		currentRules = UpValues@symbol;
-		currentRules = DeleteCases[currentRules,Verbatim@newRule];
-		UpValues[symbol]=Flatten@{currentRules,newRule};
-	];
-prependToUpValues[symbol_,newRule_]:=
-	Module[{currentRules},
-		currentRules = UpValues@symbol;
-		currentRules = DeleteCases[currentRules,Verbatim@newRule];
-		UpValues[symbol]=Flatten@{newRule,currentRules};
-	];
-	
-(*non virtual functions (that don't use sub) can be added for speed reason if their rule is before the sub special rule.
-The function name of such function must be exported though, as there is no reconciliation mechanism, 
-it's a normal UpValues function*)
-addSpecialRules[class_]:=
-	(		
-		(*We want a high priority for this rule, a function by default calls sub*)
-		prependToUpValues[class,
-			(*Dot has flat attribute so any sequence can be matched for example x.super[c].g[3] will match to (x.super[c]).g[3] 
-			and x.super[c] goes to sub (we don't want this)*)
-			HoldPattern[class[params___].(f:Except[super,_])[args___] /; !TrueQ[$blockSub[class,f]] ] :> 
-				class[params].sub.f[args]
-		];
-		
-		(*this allows to overload a subclass just for certain arguments, if arguments don't match the pattern matcher
-		for the defintion in this class, a super class will be called*)
-		appendToUpValues[class,
-			HoldPattern[class[params___].(f:Except[super,_])[args___] (* /; TrueQ[$blockSub[class,f]]*)] :>
-				class[params].super.f[args]
-		];
-		
-		(*http://mathematica.stackexchange.com/a/73017/66*)
-		(*so that when an object is returned as o for example, its main representation is returned*)
-		appendToUpValues[class,
-			HoldPattern[(h:Except[Dot,_])[a___,class[object_,___,specialRuleMainClass_],b___]] :> 
-				h[a,specialRuleMainClass[object],b]
-		];
-	);
-
 If[!ValueQ@$StaticAssociation,
 	$StaticAssociation = Association[];
 ];
@@ -400,31 +371,128 @@ New functions can be added to the class, and will be recognised after calling Re
 nonObject functions can't be easily reset after initialization
 *)
 InitializeClass[class_]:=
-	(
-		SetAttributes[class,HoldFirst];
+	Module[{finalFunctions,otherFunctions,nonObjectFunctions},
 		
-		UpValues[class] = Select[UpValues[class],FreeQ[#[[1]],sub|super]&];
+		SetAttributes[class,HoldFirst]; 
 		
-		(*we execute and cache this expensive function at definition time*)
-		stringObjectFunctions[class];
+		UpValues[class] = 
+			Select[
+				UpValues[class]
+				,
+				FreeQ[#[[1]],sub|super] ||
+				(*for getitem rule*)
+				!FreeQ[#[[1]],Verbatim[Except[sub|super|this,_Symbol|_String]]]& 
+			];
 		
 		If[!ValueQ@Supers[class],
 			Supers[class] ^= {BaseClass};
 		];
 		
-		inheritNonObjectFunctions[class];
-		
-		addSpecialRules[class];
-		
 		If[!TrueQ@Initialized@#,
 			InitializeClass@#
 		]& /@ Supers[class];
+		
+		(*we execute and cache this expensive function at definition time*)
+		stringObjectFunctions[class];
+		
+		finalFunctions = 
+			Cases[
+				UpValues[class]
+				,
+				rule:(
+					Verbatim[RuleDelayed][Verbatim[HoldPattern][Verbatim[Dot][_,function_[___]]],_] | 
+					(*BaseClass[object,___] /; condition*)
+					Verbatim[RuleDelayed][Verbatim[HoldPattern][Verbatim[Condition][Verbatim[Dot][_,function_[___]],_]],_] 
+				) /; TrueQ[$FinalFunctions[{class,function}]]:> rule
+			];
+			
+		nonObjectFunctions = inheritNonObjectFunctions[class];
+			
+		otherFunctions = 
+			DeleteCases[
+				UpValues@class
+				,
+				Verbatim /@ Join[finalFunctions,nonObjectFunctions] // Apply@Alternatives
+			];
+		
+		addSpecialRules[class,finalFunctions,otherFunctions,nonObjectFunctions];
 		
 		If[!KeyExistsQ[$StaticAssociation,class],
 			$StaticAssociation[class] = Association[];
 		];
 		
 		Initialized@class ^= True;
+	];
+	
+patternSignature[rule_]:=First@rule //. {Verbatim[Pattern][_,x_]:>x,Verbatim[Optional][x_,_]:>x};
+
+(*so that a class inherits functions like Keys[o_BaseClass]^:= o.getFields[] from its parent super classes*)
+inheritNonObjectFunctions[class_]:=
+	Block[{allNonObjectFunctions},
+		
+		SubValues@class = 
+			SubValues@# //. #->class & /@ Prepend[Reverse@Supers@class,class] // Flatten // 
+			DeleteDuplicates[#,(patternSignature@#1 === patternSignature@#2)&]&;
+		
+		allNonObjectFunctions = 
+			nonObjectRules[#] //. #->class & /@ Prepend[Reverse@Supers@class,class] // Flatten // 
+			DeleteDuplicates[#,(patternSignature@#1 === patternSignature@#2)&]&;
+			
+		allNonObjectFunctions
+	];
+	
+appendToUpValues[symbol_,newRule_]:=
+	Module[{currentRules},
+		currentRules = UpValues@symbol;
+		currentRules = DeleteCases[currentRules,Verbatim@newRule];
+		UpValues[symbol]=Join[currentRules,{newRule}];
+	];
+prependToUpValues[symbol_,newRule_]:=
+	Module[{currentRules},
+		currentRules = UpValues@symbol;
+		currentRules = DeleteCases[currentRules,Verbatim@newRule];
+		UpValues[symbol]=Join[{newRule},currentRules];
+	];
+	
+(*non virtual functions (that don't use sub) can be added for speed reason if their rule is before the sub special rule.
+The function name of such function must be exported though, as there is no reconciliation mechanism, 
+it's a normal UpValues function*)
+addSpecialRules[class_,finalFunctions_,otherFunctions_,nonObjectFunctions_]:=
+	(
+		UpValues[class] = 
+			Join[
+				nonObjectFunctions
+				,
+				finalFunctions
+			];
+			
+		appendToUpValues[class,
+			(*Dot has flat attribute so any sequence can be matched for example x.super[c].g[3] will match to (x.super[c]).g[3] 
+			and x.super[c] goes to sub (we don't want this)*)
+			HoldPattern[class[params___].(f:Except[super,_])[args___] /; !TrueQ[$blockSub[class,f]] ] :> 
+				class[params].sub.f[args]	
+		];
+		
+		UpValues[class] = 
+			Join[
+				UpValues[class]
+				,
+				otherFunctions
+			];
+			
+		appendToUpValues[class,
+			(*this allows to overload a subclass just for certain arguments, if arguments don't match the pattern matcher
+			for the defintion in this class, a super class will be called*)
+			HoldPattern[class[params___].(f:Except[super,_])[args___] (* /; TrueQ[$blockSub[class,f]]*)] :>
+				class[params].super.f[args]	
+		];
+		
+		appendToUpValues[class,
+			(*http://mathematica.stackexchange.com/a/73017/66*)
+			(*so that when an object is returned as o for example, its main representation is returned*)
+			HoldPattern[(h:Except[Dot,_])[a___,class[object_,___,specialRuleMainClass_],b___]] :> 
+				h[a,specialRuleMainClass[object],b]
+		];
 	);
 	
 this /: class_Symbol[params___].this.function_Symbol[args___] := executeThisFunction[class,function,class[params].function[args]];
@@ -574,17 +642,33 @@ redefineFunction[auxSymbol_,classList_,{class_,{params___},function_,{args___}}]
 				Switch[Length@{params},
 					0,
 						(*we add a dummy object for a static function that doesn't need an object*)
-				  		class /: class[].auxSymbol.function[arguments___] := 
-				  			executeThisFunction[executedClass,funct,executedClass[_,class].funct[arguments]];
+						(*BaseClass doesn't have a parent so we don't need in general to use the function dispatcher*)
+						If[TrueQ@$FinalFunctions[{executedClass,funct}],
+					  		class /: class[].auxSymbol.function[arguments___] := 
+					  			executedClass[_,class].funct[arguments];
+							,
+					  		class /: class[].auxSymbol.function[arguments___] := 
+					  			executeThisFunction[executedClass,funct,executedClass[_,class].funct[arguments]];
+						];
 					,
 					1,
-				  		class /: class[o_].auxSymbol.function[arguments___] := 
-				  			executeThisFunction[executedClass,funct,executedClass[o,class].funct[arguments]];
+						If[TrueQ@$FinalFunctions[{executedClass,funct}],
+					  		class /: class[o_].auxSymbol.function[arguments___] := 
+					  			executedClass[o,class].funct[arguments];
+							,
+					  		class /: class[o_].auxSymbol.function[arguments___] := 
+					  			executeThisFunction[executedClass,funct,executedClass[o,class].funct[arguments]];
+						];
 				  	,
 					_,
 						With[{mainClass = Last@{params}}, 
-				  			class /: class[o_,classStack___,mainClass].auxSymbol.function[arguments___] :=
-				  				executeThisFunction[executedClass,funct,executedClass[o,class,classStack,mainClass].funct[arguments]];
+							If[TrueQ@$FinalFunctions[{executedClass,funct}],
+					  			class /: class[o_,classStack___,mainClass].auxSymbol.function[arguments___] :=
+					  				executedClass[o,class,classStack,mainClass].funct[arguments];
+								,
+					  			class /: class[o_,classStack___,mainClass].auxSymbol.function[arguments___] :=
+					  				executeThisFunction[executedClass,funct,executedClass[o,class,classStack,mainClass].funct[arguments]];
+							];
 				  		];	
 				];   
 			];		
@@ -607,17 +691,32 @@ redefineIndexedFunction[auxSymbol_,indexClass_,classList_,{class_,{params___},fu
 				Switch[Length@{params},
 					0,
 						(*we add a dummy object for a static function that doesn't need an object*)
-						class /: class[].auxSymbol[indexClass].function[arguments___] := 
-							executeThisFunction[executedClass,funct,executedClass[_,class].funct[arguments]];
+						If[TrueQ@$FinalFunctions[{executedClass,funct}],
+							class /: class[].auxSymbol[indexClass].function[arguments___] := 
+								executedClass[_,class].funct[arguments];
+							,
+							class /: class[].auxSymbol[indexClass].function[arguments___] := 
+								executeThisFunction[executedClass,funct,executedClass[_,class].funct[arguments]];
+						];
 					,
 					1,
-						class /: class[o_].auxSymbol[indexClass].function[arguments___] := 
-							executeThisFunction[executedClass,funct,executedClass[o,class].funct[arguments]];
+						If[TrueQ@$FinalFunctions[{executedClass,funct}],
+							class /: class[o_].auxSymbol[indexClass].function[arguments___] := 
+								executedClass[o,class].funct[arguments];
+							,
+							class /: class[o_].auxSymbol[indexClass].function[arguments___] := 
+								executeThisFunction[executedClass,funct,executedClass[o,class].funct[arguments]];
+						];
 					,
 					_,
 						With[{mainClass = Last@{params}}, 
-							class /: class[o_,classStack___,mainClass].auxSymbol[indexClass].function[arguments___] := 
-								executeThisFunction[executedClass,funct,executedClass[o,class,classStack,mainClass].funct[arguments]];
+							If[TrueQ@$FinalFunctions[{executedClass,funct}],
+								class /: class[o_,classStack___,mainClass].auxSymbol[indexClass].function[arguments___] := 
+									executedClass[o,class,classStack,mainClass].funct[arguments];
+								,
+								class /: class[o_,classStack___,mainClass].auxSymbol[indexClass].function[arguments___] := 
+									executeThisFunction[executedClass,funct,executedClass[o,class,classStack,mainClass].funct[arguments]];
+							];
 						];	
 				];  
 			];		
@@ -845,43 +944,8 @@ BaseClass[object_,___][keys__] := Fold[#1[#2]&,object,{keys}];
 (*implementations should be in class functions in order to benefit from inheritance*)
 (*getItem rule*)
 BaseClass /: BaseClass[object_Symbol,___].(key:Except[sub|super|this,_Symbol|_String]):= object[MTools`Utils`Utils`GetSymbolName@key];
-SameQ[o_BaseClass,x__]^:= AllTrue[{x},o.sameQ[#]&];
-UnsameQ[o_BaseClass,x_]^:= !SameQ[o,x]; 
 Keys[o_BaseClass]^:= o.getFields[];
 Values[o_BaseClass]^:= o.getFieldValues[];
-
-(*Field setters getters*)
-(*Function for fields. A field is an object key*)
-BaseClass /: BaseClass[object_Symbol,___].set[keyValues_Association] := AssociateTo[object,keyValues];
-BaseClass /: BaseClass[object_Symbol,___].set[keyValues_List] := AssociateTo[object,keyValues];
-BaseClass /: BaseClass[object_Symbol,___].set[keys_List,values_List] /; Length@keys == Length@values := AssociateTo[object,Thread[keys->values]];
-BaseClass.set[keys_List,value_] := o.set[keys,ConstantArray[value,Length@keys]];
-BaseClass.set[keys__,lastKey_,value_] := o[keys].set[lastKey,value];
-BaseClass /: BaseClass[object_Symbol,___].set[key_,value_] := object[key]=value; 
-SetField = (#1.#2 = #3)&;
-
-(*clear shouln't be overloaded whereas delete can be*)
-BaseClass.clear[]:= ClearObject[o];
-BaseClass.delete[]:= o.clear[];
-BaseClass.copy[]:= CopySymbol[o];
-BaseClass.type[]:= Head@o;
-BaseClass /: BaseClass[object_Symbol,___].switchType[class_]:= class[object];
-BaseClass.isType[testType_]:= o.type[] === testType;
-BaseClass /: BaseClass[object_Symbol,___].data[]:= object;
-BaseClass.flattenObject[]:= {o.type[],o.data[]};
-BaseClass /: BaseClass[object_Symbol,___].objectQ[]:= ValueQ[object];
-BaseClass.sameQ[x_]:= TrueQ[x.objectQ[]] && o.isType[x.type[]] && (o.data[] === x.data[]);
-
-(*TODO allow to not initialize all fields*)
-BaseClass.initData[options_]:= 
-	Block[{classOptionNames,class=o.type[]},
-		
-		classOptionNames=ClassFields[class];
-		
-		If[!MatchQ[classOptionNames,_ClassFields|{}],
-			o.set[classOptionNames,OptionValue[class,options,#]& /@ classOptionNames]
-		]
-    ];
 
 Unprotect[Dot];
 (*faster than BaseClass.set as no need for method resolution*)
@@ -890,9 +954,9 @@ Dot /: AddTo[Dot[object_,key_],value_] := fastOperation[object,key,value,AddTo];
 Dot /: TimesBy[Dot[object_,key_],value_] := fastOperation[object,key,value,TimesBy];
 Protect[Dot];
 
-fastOperation[_[object_,___],HoldPattern[Dot[keys__]],value_,operation_]:=
+fastOperation[object_,HoldPattern[Dot[keys__]],value_,operation_]:=
 	fastOperation[
-		Fold[#1[MTools`Utils`Utils`GetSymbolName@#2]&,object,Most@{keys}],
+		Fold[#1.#2&,object,Most@{keys}],
 		Last@{keys},
 		value,
 		operation
@@ -910,13 +974,51 @@ x.a."b".c *= 4
 x.a."b".c /= 4
 *)
 
+(*Field setters getters*)
+(*Function for fields. A field is an object key*)
+BaseClass /: BaseClass[object_,___].set[keyValues_Association] := (AssociateTo[object,keyValues]; keyValues);
+BaseClass /: BaseClass[object_,___].set[keyValues_List] := (AssociateTo[object,keyValues]; keyValues);
+BaseClass /: BaseClass[object_,___].set[keys_List,values_List] /; Length@keys == Length@values := 
+	(
+		AssociateTo[object,Thread[keys->values]];
+		Thread[keys->values]
+	);
+BaseClass.set[keys_List,value_] := o.set[keys,ConstantArray[value,Length@keys]];
+BaseClass.set[keys__,lastKey_,value_] := o[keys].set[lastKey,value];
+BaseClass /: BaseClass[object_,___].set[key_,value_] := object[key]=value; 
+SetField = (#1.#2 = #3)&;
+
+(*clear shouln't be overloaded whereas delete can be*)
+(*delete and copy are virtual functions*)
+BaseClass.delete[]:= o.clear[];
+BaseClass.copy[]:= CopySymbol[o];
+BaseClass.clear[]:= ClearObject[o];
+BaseClass.type[]:= Head@o;
+BaseClass /: BaseClass[object_,___].switchType[class_]:= class[object];
+BaseClass.isType[testType_]:= o.type[] === testType;
+BaseClass /: BaseClass[object_,___].data[]:= object;
+BaseClass.flattenObject[]:= {o.type[],o.data[]};
+BaseClass /: BaseClass[object_,___].objectQ[]:= ValueQ[object];
+BaseClass.sameQ[x_]:= TrueQ[x.objectQ[]] && o.isType[x.type[]] && (o.data[] === x.data[]);
+
+(*TODO allow to not initialize all fields*)
+BaseClass.initData[options_]:= 
+	Block[{classOptionNames,class=o.type[]},
+		
+		classOptionNames=ClassFields[class];
+		
+		If[!MatchQ[classOptionNames,_ClassFields|{}],
+			o.set[classOptionNames,OptionValue[class,options,#]& /@ classOptionNames]
+		]
+    ];
+
 BaseClass.fieldExistsQ[field__]:= o[field] // FreeQ[Missing];
 BaseClass.get[field__]:= o[field] // If[FreeQ[#,Missing], #, Missing[field]]&; 
 BaseClass.get[]:= Identity@o;
-BaseClass /: BaseClass[object_Symbol,___].deleteField[field_]:= Unset[object[field]]; 
-BaseClass /: BaseClass[object_Symbol,___].getFields[]:= Keys[object];
-BaseClass /: BaseClass[object_Symbol,___].getFieldValues[]:= Values[object];
-BaseClass /: BaseClass[object_Symbol,___].fieldTake[fields_]:= KeyTake[object,fields];
+BaseClass /: BaseClass[object_,___].deleteField[field_]:= Unset[object[field]]; 
+BaseClass /: BaseClass[object_,___].getFields[]:= Keys[object];
+BaseClass /: BaseClass[object_,___].getFieldValues[]:= Values[object];
+BaseClass /: BaseClass[object_,___].fieldTake[fields_]:= KeyTake[object,fields];
 BaseClass.addField[field_,value_]:= (o.set[field,value]; o); (*builder pattern*)
 
 BaseClass.getStatic[field_]:= o.getStatic[o.type[],field];
@@ -938,59 +1040,48 @@ BaseClass.getOption[options_,option_]:=
 	];
 BaseClass.clearList[asscociationField_]:= o.set[asscociationField,{}];
 BaseClass.clearAssociation[asscociationField_]:= o.set[asscociationField,Association[]];
-BaseClass /: BaseClass[object_Symbol,___].getKey[keys__,value_]:= object[keys];
-BaseClass /: BaseClass[object_Symbol,___].setKey[keys__,value_]:= object[keys] = value;
+BaseClass /: BaseClass[object_,___].getKey[keys__,value_]:= object[keys];
+BaseClass /: BaseClass[object_,___].setKey[keys__,value_]:= object[keys] = value;
 SetAttributes[setKeyDelayed,HoldRest];
-BaseClass /: BaseClass[object_Symbol,___].setKeyDelayed[keys__,value_]:= object[keys] := value;
-BaseClass /: BaseClass[object_Symbol,___].deleteKey[keys__]:= Unset[object[keys]];
+BaseClass /: BaseClass[object_,___].setKeyDelayed[keys__,value_]:= object[keys] := value;
+BaseClass /: BaseClass[object_,___].deleteKey[keys__]:= Unset[object[keys]];
 BaseClass.renameKey[keys__,key_,newKey_]:=
 	(
 		o.setKey[keys,newKey,o[keys,key]];
 		o.deleteKey[keys,key];
 	);
 BaseClass.getKeys[asscociationField__]:= Keys[o[asscociationField]];
-BaseClass /: BaseClass[object_Symbol,___].setKeys[asscociationField__,keyValues_]:= AssociateTo[object[asscociationField],keyValues];
-BaseClass /: BaseClass[object_Symbol,___].setKeys[asscociationField__,keys_,values_]:= AssociateTo[object[asscociationField],Thread[keys->values]];
-BaseClass /: BaseClass[object_Symbol,___].getValues[asscociationField__]:= Values[object[asscociationField]];
-BaseClass /: BaseClass[object_Symbol,___].lookup[asscociationField__,keys_]:= Lookup[object[asscociationField],keys];
-BaseClass /: BaseClass[object_Symbol,___].keyTake[asscociationField__,keys_]:= KeyTake[object[asscociationField],keys];
-BaseClass /: BaseClass[object_Symbol,___].keySort[asscociationField__]:= object[asscociationField] = KeySort[object[asscociationField]];
-BaseClass /: BaseClass[object_Symbol,___].keyExistsQ[asscociationField__,key_]:= KeyExistsQ[object[asscociationField],key];
-BaseClass /: BaseClass[object_Symbol,___].appendTo[listField__,value_]:= object[listField] = Append[object[listField],value];
-BaseClass /: BaseClass[object_Symbol,___].prependTo[listField__,value_]:= object[listField] = Prepend[object[listField],value];
-BaseClass /: BaseClass[object_Symbol,___].insertTo[listField__,value_,position_]:= object[listField] = Insert[object[listField],value,position];
-BaseClass /: BaseClass[object_Symbol,___].prependJoin[listField__,value_]:= object[listField] = Join[value,object[listField]];
-BaseClass /: BaseClass[object_Symbol,___].appendJoin[listField__,value_]:= object[listField] = Join[object[listField],value];
-BaseClass /: BaseClass[object_Symbol,___].setPart[part__,value_]:= object[[part]] = value;
-BaseClass /: BaseClass[object_Symbol,___].getPart[part__]:= object[[part]];
-BaseClass /: BaseClass[object_Symbol,___].isEmpty[listOrAssociationField__]:= Normal@object[listOrAssociationField] === {};
+BaseClass /: BaseClass[object_,___].setKeys[asscociationField__,keyValues_]:= AssociateTo[object[asscociationField],keyValues];
+BaseClass /: BaseClass[object_,___].setKeys[asscociationField__,keys_,values_]:= AssociateTo[object[asscociationField],Thread[keys->values]];
+BaseClass /: BaseClass[object_,___].getValues[asscociationField__]:= Values[object[asscociationField]];
+BaseClass /: BaseClass[object_,___].lookup[asscociationField__,keys_]:= Lookup[object[asscociationField],keys];
+BaseClass /: BaseClass[object_,___].keyTake[asscociationField__,keys_]:= KeyTake[object[asscociationField],keys];
+BaseClass /: BaseClass[object_,___].keySort[asscociationField__]:= object[asscociationField] = KeySort[object[asscociationField]];
+BaseClass /: BaseClass[object_,___].keyExistsQ[asscociationField__,key_]:= KeyExistsQ[object[asscociationField],key];
+BaseClass /: BaseClass[object_,___].appendTo[listField__,value_]:= object[listField] = Append[object[listField],value];
+BaseClass /: BaseClass[object_,___].prependTo[listField__,value_]:= object[listField] = Prepend[object[listField],value];
+BaseClass /: BaseClass[object_,___].insertTo[listField__,value_,position_]:= object[listField] = Insert[object[listField],value,position];
+BaseClass /: BaseClass[object_,___].prependJoin[listField__,value_]:= object[listField] = Join[value,object[listField]];
+BaseClass /: BaseClass[object_,___].appendJoin[listField__,value_]:= object[listField] = Join[object[listField],value];
+BaseClass /: BaseClass[object_,___].setPart[part__,value_]:= object[[part]] = value;
+BaseClass /: BaseClass[object_,___].getPart[part__]:= object[[part]];
+BaseClass /: BaseClass[object_,___].isEmpty[listOrAssociationField__]:= Normal@object[listOrAssociationField] === {};
 
-BaseClass /: BaseClass[object_Symbol,___].deleteCases[listField__,pattern__]:= object[listField] = DeleteCases[object[listField],pattern];
-BaseClass /: BaseClass[object_Symbol,___].position[listField__,pattern__]:= Position[object[listField],pattern];
-BaseClass /: BaseClass[object_Symbol,___].deleteDuplicates[listField__,test_:SameQ]:= object[listField] = DeleteDuplicates[object[listField],test];
-BaseClass /: BaseClass[object_Symbol,___].cases[listField__,pattern_]:= Cases[object[listField],pattern];
-BaseClass /: BaseClass[object_Symbol,___].selectField[listField__,test_]:= Select[object[listField],test];
+BaseClass /: BaseClass[object_,___].deleteCases[listField__,pattern__]:= object[listField] = DeleteCases[object[listField],pattern];
+BaseClass /: BaseClass[object_,___].position[listField__,pattern__]:= Position[object[listField],pattern];
+BaseClass /: BaseClass[object_,___].deleteDuplicates[listField__,test_:SameQ]:= object[listField] = DeleteDuplicates[object[listField],test];
+BaseClass /: BaseClass[object_,___].cases[listField__,pattern_]:= Cases[object[listField],pattern];
+BaseClass /: BaseClass[object_,___].selectField[listField__,test_]:= Select[object[listField],test];
 
 BaseClass.thread[fun_[lists___]]:= MapThread[o.fun[##]&,{lists}];
 BaseClass.through[funs_]:= o.#& /@ funs;
 BaseClass.apply[f_[{list___}]]:= o.f[list];
 BaseClass.excuteFunction[f_]:= f[o];
 
-BaseClass /: BaseClass[object_Symbol,___].addToField[field__,value_]:= object[field] += value;
-BaseClass /: BaseClass[object_Symbol,___].multiplyByField[field__,value_]:= object[field] *= value;
-BaseClass /: BaseClass[object_Symbol,___].increment[field__]:= object[field] += 1;
-BaseClass /: BaseClass[object_Symbol,___].decrement[field__]:= object[field] -= 1;
-
-BaseClass.maxIndex[list_]:= Ordering@list // Last;
-BaseClass.minIndex[list_]:= Ordering@list // First;
-
-CreateHeldValue[initValue_:None]:= Module[{Global`heldValue=initValue},Hold[Global`heldValue]];
-GetHeldValue[Hold[heldSymbol_]]:= heldSymbol;
-GetHeldValue[Hold[heldSymbol_],key_]:= heldSymbol[key];
-SetHeldValue[Hold[heldSymbol_],value_]:= heldSymbol = value;
-SetHeldValue[Hold[heldSymbol_],key_,value_]:= heldSymbol[key] = value;
-DeleteHeldValue[Hold[heldSymbol_]]:= Unset[heldSymbol];
-DeleteHeldValue[Hold[heldSymbol_],key_]:= Unset[heldSymbol[key]];
+BaseClass /: BaseClass[object_,___].addToField[field__,value_]:= object[field] += value;
+BaseClass /: BaseClass[object_,___].multiplyByField[field__,value_]:= object[field] *= value;
+BaseClass /: BaseClass[object_,___].increment[field__]:= object[field] += 1;
+BaseClass /: BaseClass[object_,___].decrement[field__]:= object[field] -= 1;
 
 BaseClass.createHeldValue[field_,initValue_:None]:= o.set[field,CreateHeldValue[initValue]];
 BaseClass.setHeldValue[field_,value_]:= SetHeldValue[o[field],value];
@@ -1007,9 +1098,9 @@ BaseClass.tickNotify[field_]:= o[field] /. Hold[var_] :> If[ValueQ@var,var = !va
 
 SetAttributes[{cacheFunction,staticCacheFunction},HoldFirst];
 (*class is the calling class*)
-BaseClass /: BaseClass[object_Symbol,class_,___].cacheFunction[f_[args___],result_]:= (class /: class[object,___].f[args] := result; result);
-BaseClass /: BaseClass[object_Symbol,class_,___].staticCacheFunction[f_[args___],result_]:= (class /: class[___].f[args] := result; result);
-BaseClass /: BaseClass[object_Symbol,___].clearCacheFunction[class_,function_,cacheType_:"Object"]:= 
+BaseClass /: BaseClass[object_,class_,___].cacheFunction[f_[args___],result_]:= (class /: class[object,___].f[args] := result; result);
+BaseClass /: BaseClass[object_,class_,___].staticCacheFunction[f_[args___],result_]:= (class /: class[___].f[args] := result; result);
+BaseClass /: BaseClass[object_,___].clearCacheFunction[class_,function_,cacheType_:"Object"]:= 
 	Module[{oPattern,mainRepresentationRule},
 		
 		If[MatchQ[cacheType,"Object"|"AllObjects"],
@@ -1041,6 +1132,8 @@ BaseClass /: BaseClass[object_Symbol,___].clearCacheFunction[class_,function_,ca
 			UpValues[class] = Append[UpValues[class],mainRepresentationRule];
 		];
 	];
+	
+SetFinalFunction[BaseClass,$baseClassFinalFunctions];
 (*
 xx=NewClass[]
 yy=NewClass["Parents"->{xx}]
@@ -1925,6 +2018,14 @@ GetInterfaceElement[object_,interface_,OptionsPattern[]] /;(Message[GetInterface
 (* ::Subsubsection:: *)
 (* ::Subsubsection:: *)
 (* Key functions *)
+CreateHeldValue[initValue_:None]:= Module[{Global`heldValue=initValue},Hold[Global`heldValue]];
+GetHeldValue[Hold[heldSymbol_]]:= heldSymbol;
+GetHeldValue[Hold[heldSymbol_],key_]:= heldSymbol[key];
+SetHeldValue[Hold[heldSymbol_],value_]:= heldSymbol = value;
+SetHeldValue[Hold[heldSymbol_],key_,value_]:= heldSymbol[key] = value;
+DeleteHeldValue[Hold[heldSymbol_]]:= Unset[heldSymbol];
+DeleteHeldValue[Hold[heldSymbol_],key_]:= Unset[heldSymbol[key]];
+
 SetAttributes[RemoveHead, {HoldAll}];
 RemoveHead[h_[args___]] := {args};
 NKeys[_[symbol_Symbol,___],sortKeys_:True]:=NKeys[symbol,sortKeys];
