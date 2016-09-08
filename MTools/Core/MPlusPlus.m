@@ -305,17 +305,12 @@ defineObjectFunction[class_,f_,{args___},body_]:=
 	];
     
 (*Last symbol in symbols has the top priority*)
-Options[New] = {"SharedObject"->False};
-New[class_Symbol,OptionsPattern[]][opts___] :=
+New[class_Symbol][opts___] :=
     Module[{options,Global`object,newObject},
     	
     	If[!TrueQ@Initialized@class,
     		InitializeClass[class];
     	];
-    	
-		If[OptionValue@"SharedObject",
-			SetSharedFunction@Global`object;
-		];
 		
 		Global`object = Association[];
 		
@@ -332,18 +327,6 @@ New[class_Symbol,OptionsPattern[]][opts___] :=
 		(*class[object], class contains the methods, object the data*)
         newObject
     ];
-    
-(*
-InitJavaKernels["NKernels"->1,"ReservedKernels"->{"a"}]
-KernelEvaluate[Get@"MPlusPlus`"]
-x=New[BaseClass,"SharedObject"->True][]
-With[{x=x},
-	KernelSubmit["a",x.set["b",12]]
-]
-DrainKernelResults["a"] (*for the commnunication with the main kernel to happen, similar to QueueRun[]*)
-x["b"]
-a scheduled task on the main kernel can monitor new writes in the shared object
-*)
 	
 (*copy constructor, to use for ParallelEvaluate[New[$Settings][]]] ?*)
 New[{class_Symbol,data_Association},newOpts:OptionsPattern[]][opts___] :=
@@ -442,17 +425,10 @@ inheritNonObjectFunctions[class_]:=
 	];
 	
 appendToUpValues[symbol_,newRule_]:=
-	Module[{currentRules},
-		currentRules = UpValues@symbol;
-		currentRules = DeleteCases[currentRules,Verbatim@newRule];
-		UpValues[symbol]=Join[currentRules,{newRule}];
-	];
-prependToUpValues[symbol_,newRule_]:=
-	Module[{currentRules},
-		currentRules = UpValues@symbol;
-		currentRules = DeleteCases[currentRules,Verbatim@newRule];
-		UpValues[symbol]=Join[{newRule},currentRules];
-	];
+	UpValues[symbol]=Append[DeleteCases[UpValues@symbol,Verbatim@newRule],newRule];
+	
+prependToUpValues[symbol_,newRule_]:= 
+	UpValues[symbol]=Prepend[DeleteCases[UpValues@symbol,Verbatim@newRule],newRule];
 	
 (*non virtual functions (that don't use sub) can be added for speed reason if their rule is before the sub special rule.
 The function name of such function must be exported though, as there is no reconciliation mechanism, 
@@ -469,7 +445,7 @@ addSpecialRules[class_,finalFunctions_,otherFunctions_,nonObjectFunctions_]:=
 		appendToUpValues[class,
 			(*Dot has flat attribute so any sequence can be matched for example x.super[c].g[3] will match to (x.super[c]).g[3] 
 			and x.super[c] goes to sub (we don't want this)*)
-			HoldPattern[class[params___].(f:Except[super,_])[args___] /; !TrueQ[$blockSub[class,f]] ] :> 
+			HoldPattern[class[params___].(f:Except[super])[args___] /; !TrueQ[$blockSub[class,f]] ] :> 
 				class[params].sub.f[args]	
 		];
 		
@@ -483,7 +459,7 @@ addSpecialRules[class_,finalFunctions_,otherFunctions_,nonObjectFunctions_]:=
 		appendToUpValues[class,
 			(*this allows to overload a subclass just for certain arguments, if arguments don't match the pattern matcher
 			for the defintion in this class, a super class will be called*)
-			HoldPattern[class[params___].(f:Except[super,_])[args___] (* /; TrueQ[$blockSub[class,f]]*)] :>
+			HoldPattern[class[params___].(f:Except[super])[args___] (* /; TrueQ[$blockSub[class,f]]*)] :>
 				class[params].super.f[args]	
 		];
 		
@@ -644,30 +620,48 @@ redefineFunction[auxSymbol_,classList_,{class_,{params___},function_,{args___}}]
 						(*we add a dummy object for a static function that doesn't need an object*)
 						(*BaseClass doesn't have a parent so we don't need in general to use the function dispatcher*)
 						If[TrueQ@$FinalFunctions[{executedClass,funct}],
-					  		class /: class[].auxSymbol.function[arguments___] := 
-					  			executedClass[_,class].funct[arguments];
+							prependToUpValues[
+								class,
+						  		HoldPattern[class[].auxSymbol.function[arguments___]] :>
+						  			executedClass[_,class].funct[arguments]
+							]
 							,
-					  		class /: class[].auxSymbol.function[arguments___] := 
-					  			executeThisFunction[executedClass,funct,executedClass[_,class].funct[arguments]];
+							prependToUpValues[
+								class,
+						  		HoldPattern[class[].auxSymbol.function[arguments___]] :>
+						  			executeThisFunction[executedClass,funct,executedClass[_,class].funct[arguments]]
+							]
 						];
 					,
 					1,
 						If[TrueQ@$FinalFunctions[{executedClass,funct}],
-					  		class /: class[o_].auxSymbol.function[arguments___] := 
-					  			executedClass[o,class].funct[arguments];
+							prependToUpValues[
+								class,
+						  		HoldPattern[class[o_].auxSymbol.function[arguments___]] :>
+						  			executedClass[o,class].funct[arguments]
+							];
 							,
-					  		class /: class[o_].auxSymbol.function[arguments___] := 
-					  			executeThisFunction[executedClass,funct,executedClass[o,class].funct[arguments]];
+							prependToUpValues[
+								class,
+								HoldPattern[class[o_].auxSymbol.function[arguments___]] :>
+					  				executeThisFunction[executedClass,funct,executedClass[o,class].funct[arguments]]	
+							]
 						];
 				  	,
 					_,
 						With[{mainClass = Last@{params}}, 
 							If[TrueQ@$FinalFunctions[{executedClass,funct}],
-					  			class /: class[o_,classStack___,mainClass].auxSymbol.function[arguments___] :=
-					  				executedClass[o,class,classStack,mainClass].funct[arguments];
+								prependToUpValues[
+									class,
+						  			HoldPattern[class[o_,classStack___,mainClass].auxSymbol.function[arguments___]] :>
+						  				executedClass[o,class,classStack,mainClass].funct[arguments]
+								]
 								,
-					  			class /: class[o_,classStack___,mainClass].auxSymbol.function[arguments___] :=
-					  				executeThisFunction[executedClass,funct,executedClass[o,class,classStack,mainClass].funct[arguments]];
+								prependToUpValues[
+									class,
+						  			HoldPattern[class[o_,classStack___,mainClass].auxSymbol.function[arguments___]] :>
+						  				executeThisFunction[executedClass,funct,executedClass[o,class,classStack,mainClass].funct[arguments]]
+								]
 							];
 				  		];	
 				];   
@@ -692,30 +686,48 @@ redefineIndexedFunction[auxSymbol_,indexClass_,classList_,{class_,{params___},fu
 					0,
 						(*we add a dummy object for a static function that doesn't need an object*)
 						If[TrueQ@$FinalFunctions[{executedClass,funct}],
-							class /: class[].auxSymbol[indexClass].function[arguments___] := 
-								executedClass[_,class].funct[arguments];
+							prependToUpValues[
+								class,
+								HoldPattern[class[].auxSymbol[indexClass].function[arguments___]] :> 
+									executedClass[_,class].funct[arguments]
+							]
 							,
-							class /: class[].auxSymbol[indexClass].function[arguments___] := 
-								executeThisFunction[executedClass,funct,executedClass[_,class].funct[arguments]];
+							prependToUpValues[
+								class,
+								HoldPattern[class[].auxSymbol[indexClass].function[arguments___]] :> 
+									executeThisFunction[executedClass,funct,executedClass[_,class].funct[arguments]]
+							]
 						];
 					,
 					1,
 						If[TrueQ@$FinalFunctions[{executedClass,funct}],
-							class /: class[o_].auxSymbol[indexClass].function[arguments___] := 
-								executedClass[o,class].funct[arguments];
+							prependToUpValues[
+								class,
+								HoldPattern[class[o_].auxSymbol[indexClass].function[arguments___]] :> 
+									executedClass[o,class].funct[arguments]
+							]
 							,
-							class /: class[o_].auxSymbol[indexClass].function[arguments___] := 
-								executeThisFunction[executedClass,funct,executedClass[o,class].funct[arguments]];
+							prependToUpValues[
+								class,
+								HoldPattern[class[o_].auxSymbol[indexClass].function[arguments___]] :> 
+									executeThisFunction[executedClass,funct,executedClass[o,class].funct[arguments]]
+							]
 						];
 					,
 					_,
 						With[{mainClass = Last@{params}}, 
 							If[TrueQ@$FinalFunctions[{executedClass,funct}],
-								class /: class[o_,classStack___,mainClass].auxSymbol[indexClass].function[arguments___] := 
-									executedClass[o,class,classStack,mainClass].funct[arguments];
+								prependToUpValues[
+									class,
+									HoldPattern[class[o_,classStack___,mainClass].auxSymbol[indexClass].function[arguments___]] :> 
+										executedClass[o,class,classStack,mainClass].funct[arguments]
+								]
 								,
-								class /: class[o_,classStack___,mainClass].auxSymbol[indexClass].function[arguments___] := 
-									executeThisFunction[executedClass,funct,executedClass[o,class,classStack,mainClass].funct[arguments]];
+								prependToUpValues[
+									class,
+									HoldPattern[class[o_,classStack___,mainClass].auxSymbol[indexClass].function[arguments___]] :> 
+										executeThisFunction[executedClass,funct,executedClass[o,class,classStack,mainClass].funct[arguments]]
+								]
 							];
 						];	
 				];  
@@ -791,6 +803,36 @@ g:nonObjectRules[class_Symbol]:= g =
 			FreeQ[x,Blank|BlankSequence|BlankNullSequence|OptionsPattern])
 		]
 	];
+	
+(*finalFunctions = 
+	getFinalFunctions[#,class]& /@ Reverse@Append[Supers[class],class] // 
+	Apply@Join //
+	DeleteDuplicates;
+			
+ClearAll@getFinalFunctions;	
+g:getFinalFunctions[class_,newClass_]:= g =	
+	Replace[
+		UpValues[class]
+		,
+		{
+			Verbatim[RuleDelayed][Verbatim[HoldPattern][Verbatim[Dot][classSpec_,function_[args___]]],rhs_] /; 
+				TrueQ[$FinalFunctions[{class,function}]] :> 
+					With[{newClassSpec = HoldComplete[classSpec] /. class->newClass},
+						newClassSpec /. HoldComplete[nc_] :> RuleDelayed[HoldPattern[Dot[nc,function[args]]],rhs]
+					]
+			,
+			(*BaseClass[object,___] /; condition*)
+			Verbatim[RuleDelayed][Verbatim[HoldPattern][Verbatim[Condition][Verbatim[Dot][classSpec_,function_[args___]],cond_]],rhs_] /; 
+				TrueQ[$FinalFunctions[{class,function}]] :> 
+					With[{newClassSpec = HoldComplete[classSpec] /. class->newClass},
+						newClassSpec /. HoldComplete[nc_] :> RuleDelayed[HoldPattern[Condition[Dot[nc,function[args]],cond]],rhs] 
+					]
+			,
+			_ -> Nothing
+		}
+		,
+		{1}
+	];*)
 
 ClearAll@stringObjectFunctions;
 g:stringObjectFunctions[class_]:= g = SymbolName /@ objectFunctions[class];
@@ -979,10 +1021,10 @@ x.a."b".c /= 4
 BaseClass /: BaseClass[object_,___].set[keyValues_Association] := (AssociateTo[object,keyValues]; keyValues);
 BaseClass /: BaseClass[object_,___].set[keyValues_List] := (AssociateTo[object,keyValues]; keyValues);
 BaseClass /: BaseClass[object_,___].set[keys_List,values_List] /; Length@keys == Length@values := 
-	(
-		AssociateTo[object,Thread[keys->values]];
-		Thread[keys->values]
-	);
+	With[{keyValues = Thread[keys->values]},
+		AssociateTo[object,keyValues];
+		keyValues
+	];
 BaseClass.set[keys_List,value_] := o.set[keys,ConstantArray[value,Length@keys]];
 BaseClass.set[keys__,lastKey_,value_] := o[keys].set[lastKey,value];
 BaseClass /: BaseClass[object_,___].set[key_,value_] := object[key]=value; 
@@ -1417,7 +1459,7 @@ InterpretSymbol[symbol_,opts:OptionsPattern[]] :=
 SetAttributes[STEP, {Flat, OneIdentity, HoldFirst}];
 STEP[expr_] :=
 	Module[{P},
-		P = (P = Return[# (*/. HoldForm[x_] :> Defer[step[x]]*), TraceScan] &) &;
+		P = (P = Return[# (*/. HoldForm[x_] :> Defer[STEP[x]]*), TraceScan] &) &;
 		TraceScan[P, expr, TraceDepth -> 1] 
 	];
 
