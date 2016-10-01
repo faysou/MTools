@@ -1,6 +1,6 @@
 (* ::Package:: *)
 
-BeginPackage["MTools`Core`MPlusPlus`",{"JLink`"}]
+BeginPackage["MTools`Core`MPlusPlus`"]
 (* ::Subsubsection:: *)
 (* Usage *)
 NewClass::usage = 
@@ -116,7 +116,8 @@ OIncrement::usage = "OIncrement[object, keys__]";
 $FinalFunctions::usage = " ";
 FinalFunctionBlock::usage = "FinalFunctionBlock[code]";
 SetFinalFunction::usage = "SetFinalFunction[class, f]";
-ClearFinalFunctions::usage = "ClearFinalFunctions[class]";
+ClearFinalFunctions::usage = "ClearFinalFunctions[class]"
+Final::usage = "Final@class.f[args]:= body allows to define a final function.";
 
 (* ::Subsubsection:: *)
 Begin["`Private`"]
@@ -245,24 +246,36 @@ $ObjectSymbol=objectHold@o;
 
 Unprotect[Dot];
 (*converting class.f[args]:=body to class /: o_class.f[args] := body*)
-Dot /: SetDelayed[Dot[class_Symbol, f_Symbol[args___]], body_] := defineObjectFunction[class, f, {args}, body];
+Dot /: SetDelayed[Dot[class_Symbol, f_Symbol[args___]], body_] := 
+	(
+		If[TrueQ@$isFinalFunction, 
+			SetFinalFunction[class, f];
+		];
+		
+		defineObjectFunction[class, f, {args}, body];
+	);
+Dot /: SetDelayed[Dot[Final[class_Symbol], f_Symbol[args___]], body_] := 
+	(
+		SetFinalFunction[class, f];
+		defineObjectFunction[class, f, {args}, body];
+	);
 Protect[Dot];
 
 If[!ValueQ@$FinalFunctions, 
 	$FinalFunctions = Association[];
 ];
+	
+(*useful for defining final functions for function defined with TagSetDelayed directly*)
+SetAttributes[SetFinalFunction, Listable];
+SetFinalFunction[class_, f_]:= $FinalFunctions[{class, f}] = True;
 
 SetAttributes[FinalFunctionBlock, HoldFirst];
 FinalFunctionBlock[code_]:=
 	Block[{$isFinalFunction = True}, 
 		code	
 	];
-	
+
 ClearFinalFunctions[class_]:= KeyDropFrom[$FinalFunctions, Cases[Keys@$FinalFunctions, {class, _}]];
-	
-(*useful for defining final functions for function defined with TagSetDelayed directly*)
-SetAttributes[SetFinalFunction, Listable];
-SetFinalFunction[class_, f_]:= $FinalFunctions[{class, f}] = True;
 	
 (*function to automatically convert BaseClass.clear[] := ClearObject[o] to BaseClass /: o_BaseClass.clear[] := ClearObject[o]*)
 SetAttributes[defineObjectFunction, HoldAllComplete];
@@ -270,10 +283,6 @@ defineObjectFunction[class_, f_, {args___}, body_]:=
 	Block[{tagSetDelayed}, 
 		
 		SetAttributes[tagSetDelayed, HoldAllComplete];
-		
-		If[TrueQ@$isFinalFunction, 
-			$FinalFunctions[{class, f}] = True;
-		];
 
 		With[{objectSymbol = $ObjectSymbol}, 
 			(*we need to rename TagSetDelayed in order to insert $ObjectSymbol*)
@@ -1174,8 +1183,8 @@ $baseClassFinalFunctions=
 	appendJoin, setPart, getPart, isEmpty, deleteCases, position, deleteDuplicates, cases, selectField, thread, 
 	through, apply, excuteFunction, addToField, multiplyByField, increment, decrement, createHeldValue, 
 	setHeldValue, getHeldValue, deleteHeldValue, newTick, tickNotify, cacheFunction, staticCacheFunction, 
-	clearCacheFunction}
-	
+	clearCacheFunction};
+
 SetFinalFunction[BaseClass, $baseClassFinalFunctions];
 (*
 xx=NewClass[]

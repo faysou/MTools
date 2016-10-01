@@ -142,8 +142,7 @@ GenericClass.removeFromAssociation[id_:"Symbol", assoc_:"Symbols"]:=
 	];
 SetAttributes[{iterate, iterateAssociation, upIterate}, HoldFirst];
 Options[iterate] = {"Condition" -> (True&), "CarryTreeResult" -> False, "Field" -> "Components", "ExternalIterate" -> False};
-FinalFunctionBlock[
-GenericClass.iterate[fun_, opts:OptionsPattern[iterate]]:= 
+Final@GenericClass.iterate[fun_, opts:OptionsPattern[iterate]]:= 
 	Block[{iterationResult, condition, carryTreeResult, componentsList}, 
 		
 		condition = OptionValue[iterate, {opts}, "Condition"];
@@ -177,7 +176,6 @@ GenericClass.iterate[fun_, opts:OptionsPattern[iterate]]:=
 			iterationResult
 		]
 	];
-];
 Options[upIterate] = {"Condition" -> (True&), "ExternalIterate" -> False};
 GenericClass.upIterate[fun_, opts:OptionsPattern[upIterate]]:=
 	Block[{iterationResult, condition, carryTreeResult, componentsList}, 
@@ -1203,8 +1201,7 @@ GenericGroup.componentsThread[fun_[otherArgs___, list_]]:= MapThread[#1.fun[othe
 superIterate::unknownTraversal = "`1` is an unknown TraversalOrder option.";
 SetAttributes[{superIterate, selfIterate}, HoldFirst];
 Options[superIterate] = Join[Options[iterate], {"SuperClass" -> Automatic, "TraversalOrder" -> "Prefix"(*or "Postfix"*)}];
-FinalFunctionBlock[
-GenericGroup.superIterate[fun_, opts:OptionsPattern[superIterate]]:= 
+Final@GenericGroup.superIterate[fun_, opts:OptionsPattern[superIterate]]:= 
 	Block[{superClass, superResult, iterationResult, traversalOrder}, 
 
 		superClass = OptionValue[superIterate, {opts}, "SuperClass"];
@@ -1246,7 +1243,6 @@ GenericGroup.superIterate[fun_, opts:OptionsPattern[superIterate]]:=
 				Abort[];
 		]
 	];
-];
 GenericGroup.selfIterate[fun_, opts:OptionsPattern[superIterate]]:= o.superIterate[fun, "SuperClass" -> None, opts];
 GenericGroup.treeIterate[fun_, opts:OptionsPattern[treeIterate]]:= 
 	Block[{nodeValue, treeValues, result, iterationResult, condition, traversalOrder}, 
