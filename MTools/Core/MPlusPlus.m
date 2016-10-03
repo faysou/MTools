@@ -1,6 +1,6 @@
 (* ::Package:: *)
 
-BeginPackage["MTools`Core`MPlusPlus`"]
+BeginPackage["MTools`Core`MPlusPlus`", {"JLink`"}]
 (* ::Subsubsection:: *)
 (* Usage *)
 NewClass::usage = 
