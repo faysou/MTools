@@ -16,7 +16,7 @@ ReplaceKey::usage = "ReplaceKey  "
 ListToString::usage = "ListToString  "
 DeleteKeys::usage = "DeleteKeys  "
 JoinTables::usage = "JoinTables  "
-AdjustList::usage = "AdjustList  "
+AdjustMatrix::usage = "AdjustMatrix[l, emptyElemement:\"\"]";
 DecorateTable::usage = "DecorateTable  "
 RoundAsPercent::usage = "RoundAsPercent  "
 RoundAsIntegerPercent::usage = "RoundAsIntegerPercent  "
@@ -117,31 +117,31 @@ JoinTables[tab1_List, tab2_List, opts:OptionsPattern[]] :=
 					"Horizontal",
 						Switch[{dimTab1, dimTab2},
 							{1,1}, 
-								AdjustList[{tab1, tab2},emptyElemement]//Transpose
+								AdjustMatrix[{tab1, tab2},emptyElemement]//Transpose
 							,
 							{1,2}, 
-								AdjustList[Join[{tab1},tab2//Transpose],emptyElemement]//Transpose
+								AdjustMatrix[Join[{tab1},tab2//Transpose],emptyElemement]//Transpose
 							,
 							{2,1}, 
-								AdjustList[Join[tab1//Transpose,{tab2}],emptyElemement]//Transpose (*does same job : ArrayFlatten@{{array, List /@ column}}*)
+								AdjustMatrix[Join[tab1//Transpose,{tab2}],emptyElemement]//Transpose (*does same job : ArrayFlatten@{{array, List /@ column}}*)
 							, 
 							{2,2}, 
-								AdjustList[Join[tab1//Transpose,tab2//Transpose],emptyElemement]//Transpose
+								AdjustMatrix[Join[tab1//Transpose,tab2//Transpose],emptyElemement]//Transpose
 						]
 					,
 					"Vertical",
 						Switch[{dimTab1, dimTab2},
 							{1,1}, 
-								AdjustList[{tab1, tab2},emptyElemement]
+								AdjustMatrix[{tab1, tab2},emptyElemement]
 							,
 							{1,2}, 
-								AdjustList[Join[{tab1},tab2],emptyElemement]
+								AdjustMatrix[Join[{tab1},tab2],emptyElemement]
 							,
 							{2,1}, 
-								AdjustList[Join[tab1,{tab2}],emptyElemement]
+								AdjustMatrix[Join[tab1,{tab2}],emptyElemement]
 							,
 							{2,2}, 
-								AdjustList[Join[tab1, tab2],emptyElemement]
+								AdjustMatrix[Join[tab1, tab2],emptyElemement]
 						]
 				]
 		]
@@ -149,13 +149,13 @@ JoinTables[tab1_List, tab2_List, opts:OptionsPattern[]] :=
 	
 JoinTables[tabs__List, opts:OptionsPattern[]]:=Fold[JoinTables[#1, #2, opts]&,First@{tabs},Rest@{tabs}];
 
-AdjustList[l_,emptyElemement_:""]:=
-	Module[ {maxInnerLength},
-		If[Length@Dimensions@l == 2,
+AdjustMatrix[l_, emptyElemement_:""]:=
+	Module[{maxInnerLength}, 
+		If[Length@Dimensions@l == 2, 
 			l
-			,
+			, 
 			maxInnerLength = Max[Length /@ l];
-			PadRight[#,maxInnerLength,emptyElemement]& /@ l
+			PadRight[#, maxInnerLength, emptyElemement]& /@ l
 		]
 	];
 

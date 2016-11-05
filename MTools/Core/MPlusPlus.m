@@ -29,6 +29,7 @@ o::usage = "o is the default symbol to refer to an object in a class function. Y
 $ObjectSymbol::usage = "$ObjectSymbol contains the symbol used to represent the current object in class functions,  by default $ObjectSymbol == objectHold[o].";
 objectHold::usage = "objectHold contains the symbol used by $ObjectSymbol,  by default $ObjectSymbol == objectHold[o].";
 
+EnsureInitialized::usage = "EnsureInitialized[class]";
 FunctionQ::usage = "FunctionQ[class, functionName] tests if the function functionName is implemented in class.";
 objectSet::usage = "objectSet[object, key, value] is a way to set a key/value to an object or a symbol.";
 CopySymbol::usage = "CopySymbol[object] return a copy of an object.";
@@ -117,12 +118,21 @@ $FinalFunctions::usage = " ";
 FinalFunctionBlock::usage = "FinalFunctionBlock[code]";
 SetFinalFunction::usage = "SetFinalFunction[class, f]";
 ClearFinalFunctions::usage = "ClearFinalFunctions[class]"
-Final::usage = "Final@class.f[args]:= body allows to define a final function.";
+Final::usage = "Final@class.f[args]:= body allows to define a final function."
 
 (* ::Subsubsection:: *)
 Begin["`Private`"]
 (* ::Subsubsection:: *)
 (* Class *)
+If[!ValueQ@$StaticAssociation, 
+	$StaticAssociation = Association[];
+];
+
+initStaticAssociation[class_]:=
+	If[!KeyExistsQ[$StaticAssociation, class], 
+		$StaticAssociation[class] = Association[];
+	];
+
 Options[NewClass]={"Fields" -> {}, "Parents" -> {}, "InterfaceOrdering" -> {}}
 NewClass /: Set[class_Symbol, NewClass[opts:OptionsPattern[]]] :=
 	Module[{classProperties, parentClasses, interfaceOrdering}, 
@@ -140,13 +150,15 @@ NewClass /: Set[class_Symbol, NewClass[opts:OptionsPattern[]]] :=
 				, 
 				{}
 			];
+			
+		initStaticAssociation[class];
 	
 		ClearFinalFunctions[class];
 		Initialized[class] = False;
 		
 		class
 	];
-
+	
 SetAttributes[isOptionDuplicate, Orderless];
 isOptionDuplicate[x_ -> _, x_ -> _]:=True;
 isOptionDuplicate[{x_ -> _, __}, {x_ -> _, __}]:=True;
@@ -341,21 +353,19 @@ New[data_Association, newOpts:OptionsPattern[]][opts___] := New[{ToExpression@da
 	
 New[][]:= New[BaseClass][];
 
-If[!ValueQ@$StaticAssociation, 
-	$StaticAssociation = Association[];
-];
-
 (*
 InitializeClass is called the first time a new instance of a class is created
 A class needs to be initialized manually to call static functions on it without instantiating an object
 New functions can be added to the class,  and will be recognised after calling ResetClasses[]
 nonObject functions can't be easily reset after initialization
 *)
+SetAttributes[InitializeClass, Listable];
 InitializeClass[class_]:=
 	Module[{finalFunctions, otherFunctions, nonObjectFunctions}, 
 		
 		SetAttributes[class, HoldFirst]; 
 		
+		(*we clean the class from previously cached rules*)
 		UpValues[class] = 
 			Select[
 				UpValues[class]
@@ -376,16 +386,7 @@ InitializeClass[class_]:=
 		(*we execute and cache this expensive function at definition time*)
 		stringObjectFunctions[class];
 		
-		finalFunctions = 
-			Cases[
-				UpValues[class]
-				, 
-				rule:(
-					Verbatim[RuleDelayed][Verbatim[HoldPattern][Verbatim[Dot][_, function_[___]]], _] | 
-					(*BaseClass[object, ___] /; condition*)
-					Verbatim[RuleDelayed][Verbatim[HoldPattern][Verbatim[Condition][Verbatim[Dot][_, function_[___]], _]], _] 
-				) /; TrueQ[$FinalFunctions[{class, function}]]:> rule
-			];
+		finalFunctions = getFinalFunctions[class];
 			
 		nonObjectFunctions = inheritNonObjectFunctions[class];
 			
@@ -398,14 +399,23 @@ InitializeClass[class_]:=
 		
 		addSpecialRules[class, finalFunctions, otherFunctions, nonObjectFunctions];
 		
-		If[!KeyExistsQ[$StaticAssociation, class], 
-			$StaticAssociation[class] = Association[];
-		];
+		initStaticAssociation[class];
 		
 		Initialized@class ^= True;
 	];
 	
-patternSignature[rule_]:=First@rule //. {Verbatim[Pattern][_, x_]:>x, Verbatim[Optional][x_, _]:>x};
+getFinalFunctions[class_]:=
+	Cases[
+		UpValues[class]
+		, 
+		rule:(
+			Verbatim[RuleDelayed][Verbatim[HoldPattern][Verbatim[Dot][_, function_[___]]], _] | 
+			(*BaseClass[object, ___] /; condition*)
+			Verbatim[RuleDelayed][Verbatim[HoldPattern][Verbatim[Condition][Verbatim[Dot][_, function_[___]], _]], _] 
+		) /; TrueQ[$FinalFunctions[{class, function}]]:> rule
+	];
+
+patternSignature[rule_]:= First@rule //. {Verbatim[Pattern][_, x_]:>x, Verbatim[Optional][x_, _]:>x};
 
 (*so that a class inherits functions like Keys[o_BaseClass]^:= o.getFields[] from its parent super classes*)
 inheritNonObjectFunctions[class_]:=
@@ -876,6 +886,11 @@ GetArguments[class_Symbol|class_Symbol[_]]:=
 	];
 	
 GetAllArguments[class_]:=GetArguments[class]//Values//Flatten//DeleteDuplicates//Sort;
+
+EnsureInitialized[class_]:=
+	If[! Initialized@class,
+		InitializeClass[class];
+	];
 	
 ClearAll@FunctionQ;
 FunctionQ[class_[___], functionName_]:= FunctionQ[class, functionName];
@@ -1172,8 +1187,7 @@ BaseClass /: BaseClass[object_, ___].clearCacheFunction[class_, function_, cache
 			UpValues[class] = Append[UpValues[class], mainRepresentationRule];
 		];
 	];
-	
-(*for now they are alway exported*)
+
 $baseClassFinalFunctions=
 	{set, clear, type, switchType, isType, data, flattenObject, objectQ, sameQ, initData, 
 	fieldExistsQ, get, deleteField, getFields, getFieldValues, fieldTake, addField, 
@@ -1355,7 +1369,13 @@ EditSymbolPane[object_, opts:OptionsPattern[]] :=
 		] 
 	];
 	
-Options[GetKeys]={"InterfaceOrdering" -> Automatic, "InterfaceOrderingSymbol" -> InterfaceOrdering, "FieldsExcluded" -> None, "SortKeys" -> True};
+Options[GetKeys]=
+	{
+		"InterfaceOrdering" -> Automatic, 
+		"InterfaceOrderingSymbol" -> InterfaceOrdering, 
+		"FieldsExcluded" -> None, 
+		"SortKeys" -> True
+	};
 GetKeys[object_, opts:OptionsPattern[]]:=
 	Module[{paramNames, interface, interfaceRules, paramName, paramRules, dict=Association[],  
 			interfaceOrdering, fieldsExcluded, sortKeys, interfaceOrderingSymbol}, 
@@ -1371,7 +1391,10 @@ GetKeys[object_, opts:OptionsPattern[]]:=
 	    
 	    (*An interface for a same element in an object overrides what's defined at class level*)
 	    interface=
-	    	Join[AccessUpValue[object, Interface], AccessUpValue[object, Interface, "Class"]]//
+	    	Join[
+	    		AccessUpValue[object, Interface], 
+	    		AccessUpValue[object, Interface, "Class"]
+	    	]//
 	    	DeleteDuplicates[#, (First@#1===First@#2)&]&;
 	    
 	    If[interface =!= {},     	
@@ -1392,6 +1415,7 @@ GetKeys[object_, opts:OptionsPattern[]]:=
 	    
 	    (*We take as a priority InterfaceOrdering at object level if available else at class level*)
 	    If[interfaceOrdering===Automatic, 
+	    	
 		    interfaceOrdering=AccessUpValue[object, interfaceOrderingSymbol];
 		    
 		    If[interfaceOrdering === {}, 
@@ -1400,6 +1424,11 @@ GetKeys[object_, opts:OptionsPattern[]]:=
 		    
 		    If[interfaceOrdering==={}, 
 		    	interfaceOrdering = paramNames;
+		    ];
+		    
+		    (*We ensure that a list of list is a matrix*)
+		    If[Depth@interfaceOrdering - 1 == 2,
+		    	interfaceOrdering = MTools`Utils`Utils`AdjustMatrix[interfaceOrdering, None];
 		    ];
 	    ];
 	    

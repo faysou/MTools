@@ -34,8 +34,8 @@ $SavedObjects::usage = " ";
 
 $o;
 
-ValueObject::usage = "ValueObject  "
-ValuesSelector::usage = "ValuesSelector  ";
+ValueObject::usage = "  "
+ValuesSelector::usage = "  ";
 
 Begin["`Private`"] (* Begin Private Context *) 
 (* ::Subsection:: *)
@@ -1021,8 +1021,7 @@ PropertiesCheckboxBar.show[]:= (*View*)
 					, 
 					{
 						CheckboxBar[
-							(*TrackedSymbols doesn't work with CheckboxBar so can't use TrackObject*)
-							Dynamic[
+							TrackObject[{o["SelectedVariables"]}, 
 								o["SelectedVariables", "Value"]
 								, 
 								o.updateSelectedProperties[#]&
@@ -1649,7 +1648,7 @@ insertOrUpdate[connectionSettings_, updateInfo_, {"UpdateSavedDate", ids_}]:=
 		insertOk
 	];
 (* ::Subsubsection:: *)
-InitializeClass[GenericGroup];
+EnsureInitialized[GenericGroup];
 (* ::Subsection:: *)
 (* ::Subsection:: *)
 (* Data structures *)
