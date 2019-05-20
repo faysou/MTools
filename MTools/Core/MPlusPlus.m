@@ -84,7 +84,7 @@ UninterpretSymbol::usage = "UninterpretSymbol[object] converts back an interpret
 DynamicObject::usage = "DynamicObject allows to refer to an object when definining the appearance of fields.";
 GetTrackedSymbols::usage = "GetTrackedSymbols[objectList] returns a rule delayed TrackedSymbols :> objectSymbols,  with objectSymbols being the symbols
 underlying objectList.";
-SetField::usage = "SetField is expanded as SetField[object, key, value] when an automatic interface generation happens.";
+SetProp::usage = "SetProp is expanded as SetProp[object, key, value] when an automatic interface generation happens.";
 
 SetHelp::usage = 
 "SetHelp[class] stores a usage message about class.
@@ -1044,7 +1044,7 @@ BaseClass /: BaseClass[object_, ___].set[keys_List, values_List] /; Length@keys 
 BaseClass.set[keys_List, value_]:= o.set[keys, ConstantArray[value, Length@keys]];
 BaseClass.set[keys__, lastKey_, value_]:= o[keys].set[lastKey, value];
 BaseClass /: BaseClass[object_, ___].set[key_, value_]:= object[key]=value; 
-SetField = (#1.#2 = #3)&;
+SetProp = (#1.#2 = #3)&;
 
 (*clear shouln't be overloaded whereas delete can be*)
 (*delete and copy are virtual functions*)
@@ -1356,7 +1356,7 @@ EditSymbolPane[object_, opts:OptionsPattern[]]:=
 				    elements
 			        , 
 			        Alignment  ->  Left
-		        ]  /.  x_Symbol /; MTools`Utils`Utils`GetSymbolName@x == "SetField" :> SetField[##] // 
+		        ]  /.  x_Symbol /; MTools`Utils`Utils`GetSymbolName@x == "SetProp" :> SetProp[##] // 
 		        Replace[#, MyHold@e_ :> e, Infinity, Heads -> True]&;
 	
 		    Pane[
