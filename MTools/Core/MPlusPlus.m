@@ -9,9 +9,6 @@ and the parent classesusing the option \"Fields\".";
 New::usage = "New[class][fieldOptions] creates an instance of class with optional property values.";
 
 SubClass; (*see below for the usage definition*)
-sub::usage = 
-"Class[object, classStack___, CallingClass].sub.f[args] or CallingClass[object].sub.f[args] executes function f 
-using the implementation of CallingClass or the nearest super class of CallingClass.";
 super::usage = 
 "Class[object].super.f[args] executes function f using the implementation of the nearest super class of Class.
 Class[object].super[OtherClass].f[args] executes function f using the implementation of OtherClass or the nearest super class of OtherClass.";
@@ -27,7 +24,7 @@ FormatClass::usage = "FormatClass[class] defines the default appearance of an ob
 
 o::usage = "o is the default symbol to refer to an object in a class function. You can change this by changing the value of $ObjectSymbol.";
 $ObjectSymbol::usage = "$ObjectSymbol contains the symbol used to represent the current object in class functions,  by default $ObjectSymbol == objectHold[o].";
-objectHold::usage = "objectHold contains the symbol used by $ObjectSymbol,  by default $ObjectSymbol == objectHold[o].";
+objectHold::usage = "objectHold contains the symbol used by $ObjectSymbol, by default $ObjectSymbol == objectHold[o].";
 
 EnsureInitialized::usage = "EnsureInitialized[class]";
 FunctionQ::usage = "FunctionQ[class, functionName] tests if the function functionName is implemented in class.";
@@ -114,11 +111,7 @@ OAddTo::usage = "OAddTo[object, keys__, value]";
 OMultiplyBy::usage = "OMultiplyBy[object, keys__, value]";
 OIncrement::usage = "OIncrement[object, keys__]";
 
-$FinalFunctions::usage = " ";
-FinalFunctionBlock::usage = "FinalFunctionBlock[code]";
-SetFinalFunction::usage = "SetFinalFunction[class, f]";
-ClearFinalFunctions::usage = "ClearFinalFunctions[class]"
-Final::usage = "Final@class.f[args]:= body allows to define a final function."
+$MPPFunctions::usage = " ";
 
 (* ::Subsubsection:: *)
 Begin["`Private`"]
@@ -153,7 +146,6 @@ NewClass /: Set[class_Symbol, NewClass[opts:OptionsPattern[]]]:=
 			
 		initStaticAssociation[class];
 	
-		ClearFinalFunctions[class];
 		Initialized[class] = False;
 		
 		class
@@ -258,36 +250,12 @@ $ObjectSymbol = objectHold@o;
 
 Unprotect[Dot];
 (*converting class.f[args]:=body to class /: o_class.f[args]:= body*)
-Dot /: SetDelayed[Dot[class_Symbol, f_Symbol[args___]], body_]:= 
-	(
-		If[TrueQ@$isFinalFunction, 
-			SetFinalFunction[class, f];
-		];
-		
-		defineObjectFunction[class, f, {args}, body];
-	);
-Dot /: SetDelayed[Dot[Final[class_Symbol], f_Symbol[args___]], body_]:= 
-	(
-		SetFinalFunction[class, f];
-		defineObjectFunction[class, f, {args}, body];
-	);
+Dot /: SetDelayed[Dot[class_Symbol, f_Symbol[args___]], body_]:= defineObjectFunction[class, f, {args}, body];
 Protect[Dot];
 
-If[!ValueQ@$FinalFunctions, 
-	$FinalFunctions = Association[];
+If[!ValueQ@$MPPFunctions, 
+	$MPPFunctions = Association[];
 ];
-	
-(*useful for defining final functions for function defined with TagSetDelayed directly*)
-SetAttributes[SetFinalFunction, Listable];
-SetFinalFunction[class_, f_]:= $FinalFunctions[{class, f}] = True;
-
-SetAttributes[FinalFunctionBlock, HoldFirst];
-FinalFunctionBlock[code_]:=
-	Block[{$isFinalFunction = True}, 
-		code	
-	];
-
-ClearFinalFunctions[class_]:= KeyDropFrom[$FinalFunctions, Cases[Keys@$FinalFunctions, {class, _}]];
 	
 (*function to automatically convert BaseClass.clear[]:= ClearObject[o] to BaseClass /: o_BaseClass.clear[]:= ClearObject[o]*)
 SetAttributes[defineObjectFunction, HoldAllComplete];
@@ -361,7 +329,7 @@ nonObject functions can't be easily reset after initialization
 *)
 SetAttributes[InitializeClass, Listable];
 InitializeClass[class_]:=
-	Module[{finalFunctions, otherFunctions, nonObjectFunctions}, 
+	Module[{otherFunctions, nonObjectFunctions}, 
 		
 		SetAttributes[class, HoldFirst]; 
 		
@@ -385,8 +353,6 @@ InitializeClass[class_]:=
 		
 		(*we execute and cache this expensive function at definition time*)
 		stringObjectFunctions[class];
-		
-		finalFunctions = getFinalFunctions[class];
 			
 		nonObjectFunctions = inheritNonObjectFunctions[class];
 			
@@ -394,25 +360,14 @@ InitializeClass[class_]:=
 			DeleteCases[
 				UpValues@class
 				, 
-				Verbatim /@ Join[finalFunctions, nonObjectFunctions] // Apply@Alternatives
+				Verbatim /@ nonObjectFunctions // Apply@Alternatives
 			];
 		
-		addSpecialRules[class, finalFunctions, otherFunctions, nonObjectFunctions];
+		addSpecialRules[class, otherFunctions, nonObjectFunctions];
 		
 		initStaticAssociation[class];
 		
 		Initialized@class ^= True;
-	];
-	
-getFinalFunctions[class_]:=
-	Cases[
-		UpValues[class]
-		, 
-		rule:(
-			Verbatim[RuleDelayed][Verbatim[HoldPattern][Verbatim[Dot][_, function_[___]]], _] | 
-			(*BaseClass[object, ___] /; condition*)
-			Verbatim[RuleDelayed][Verbatim[HoldPattern][Verbatim[Condition][Verbatim[Dot][_, function_[___]], _]], _] 
-		) /; TrueQ[$FinalFunctions[{class, function}]]:> rule
 	];
 
 patternSignature[rule_]:= First@rule //. {Verbatim[Pattern][_, x_]:>x, Verbatim[Optional][x_, _]:>x};
@@ -441,14 +396,9 @@ prependToUpValues[symbol_, newRule_]:=
 (*non virtual functions (that don't use sub) can be added for speed reason if their rule is before the sub special rule.
 The function name of such function must be exported though,  as there is no reconciliation mechanism,  
 it's a normal UpValues function*)
-addSpecialRules[class_, finalFunctions_, otherFunctions_, nonObjectFunctions_]:=
+addSpecialRules[class_, otherFunctions_, nonObjectFunctions_]:=
 	(
-		UpValues[class] = 
-			Join[
-				nonObjectFunctions
-				, 
-				finalFunctions
-			];
+		UpValues[class] = nonObjectFunctions;
 			
 		appendToUpValues[class, 
 			(*Dot has flat attribute so any sequence can be matched for example x.super[c].g[3] will match to (x.super[c]).g[3] 
@@ -627,49 +577,25 @@ redefineFunction[auxSymbol_, classList_, {class_, {params___}, function_, {args_
 					0, 
 						(*we add a dummy object for a static function that doesn't need an object*)
 						(*BaseClass doesn't have a parent so we don't need in general to use the function dispatcher*)
-						If[TrueQ@$FinalFunctions[{executedClass, funct}], 
-							prependToUpValues[
-								class, 
-						  		HoldPattern[class[].auxSymbol.function[arguments___]] :>
-						  			executedClass[_, class].funct[arguments]
-							]
-							, 
-							prependToUpValues[
-								class, 
-						  		HoldPattern[class[].auxSymbol.function[arguments___]] :>
-						  			executeThisFunction[executedClass, funct, executedClass[_, class].funct[arguments]]
-							]
+						prependToUpValues[
+							class, 
+					  		HoldPattern[class[].auxSymbol.function[arguments___]] :>
+					  			executeThisFunction[executedClass, funct, executedClass[_, class].funct[arguments]]
 						];
 					, 
 					1, 
-						If[TrueQ@$FinalFunctions[{executedClass, funct}], 
-							prependToUpValues[
-								class, 
-						  		HoldPattern[class[o_].auxSymbol.function[arguments___]] :>
-						  			executedClass[o, class].funct[arguments]
-							];
-							, 
-							prependToUpValues[
-								class, 
-								HoldPattern[class[o_].auxSymbol.function[arguments___]] :>
-					  				executeThisFunction[executedClass, funct, executedClass[o, class].funct[arguments]]	
-							]
+						prependToUpValues[
+							class, 
+							HoldPattern[class[o_].auxSymbol.function[arguments___]] :>
+				  				executeThisFunction[executedClass, funct, executedClass[o, class].funct[arguments]]	
 						];
 				  	, 
 					_, 
 						With[{mainClass = Last@{params}},  
-							If[TrueQ@$FinalFunctions[{executedClass, funct}], 
-								prependToUpValues[
-									class, 
-						  			HoldPattern[class[o_, classStack___, mainClass].auxSymbol.function[arguments___]] :>
-						  				executedClass[o, class, classStack, mainClass].funct[arguments]
-								]
-								, 
-								prependToUpValues[
-									class, 
-						  			HoldPattern[class[o_, classStack___, mainClass].auxSymbol.function[arguments___]] :>
-						  				executeThisFunction[executedClass, funct, executedClass[o, class, classStack, mainClass].funct[arguments]]
-								]
+							prependToUpValues[
+								class, 
+					  			HoldPattern[class[o_, classStack___, mainClass].auxSymbol.function[arguments___]] :>
+					  				executeThisFunction[executedClass, funct, executedClass[o, class, classStack, mainClass].funct[arguments]]
 							];
 				  		];	
 				];   
@@ -693,49 +619,25 @@ redefineIndexedFunction[auxSymbol_, indexClass_, classList_, {class_, {params___
 				Switch[Length@{params}, 
 					0, 
 						(*we add a dummy object for a static function that doesn't need an object*)
-						If[TrueQ@$FinalFunctions[{executedClass, funct}], 
-							prependToUpValues[
-								class, 
-								HoldPattern[class[].auxSymbol[indexClass].function[arguments___]] :> 
-									executedClass[_, class].funct[arguments]
-							]
-							, 
-							prependToUpValues[
-								class, 
-								HoldPattern[class[].auxSymbol[indexClass].function[arguments___]] :> 
-									executeThisFunction[executedClass, funct, executedClass[_, class].funct[arguments]]
-							]
+						prependToUpValues[
+							class, 
+							HoldPattern[class[].auxSymbol[indexClass].function[arguments___]] :> 
+								executeThisFunction[executedClass, funct, executedClass[_, class].funct[arguments]]
 						];
 					, 
 					1, 
-						If[TrueQ@$FinalFunctions[{executedClass, funct}], 
-							prependToUpValues[
-								class, 
-								HoldPattern[class[o_].auxSymbol[indexClass].function[arguments___]] :> 
-									executedClass[o, class].funct[arguments]
-							]
-							, 
-							prependToUpValues[
-								class, 
-								HoldPattern[class[o_].auxSymbol[indexClass].function[arguments___]] :> 
-									executeThisFunction[executedClass, funct, executedClass[o, class].funct[arguments]]
-							]
+						prependToUpValues[
+							class, 
+							HoldPattern[class[o_].auxSymbol[indexClass].function[arguments___]] :> 
+								executeThisFunction[executedClass, funct, executedClass[o, class].funct[arguments]]
 						];
 					, 
 					_, 
 						With[{mainClass = Last@{params}},  
-							If[TrueQ@$FinalFunctions[{executedClass, funct}], 
-								prependToUpValues[
-									class, 
-									HoldPattern[class[o_, classStack___, mainClass].auxSymbol[indexClass].function[arguments___]] :> 
-										executedClass[o, class, classStack, mainClass].funct[arguments]
-								]
-								, 
-								prependToUpValues[
-									class, 
-									HoldPattern[class[o_, classStack___, mainClass].auxSymbol[indexClass].function[arguments___]] :> 
-										executeThisFunction[executedClass, funct, executedClass[o, class, classStack, mainClass].funct[arguments]]
-								]
+							prependToUpValues[
+								class, 
+								HoldPattern[class[o_, classStack___, mainClass].auxSymbol[indexClass].function[arguments___]] :> 
+									executeThisFunction[executedClass, funct, executedClass[o, class, classStack, mainClass].funct[arguments]]
 							];
 						];	
 				];  
@@ -811,36 +713,6 @@ g:nonObjectRules[class_Symbol]:= g =
 			FreeQ[x, Blank|BlankSequence|BlankNullSequence|OptionsPattern])
 		]
 	];
-	
-(*finalFunctions = 
-	getFinalFunctions[#, class]& /@ Reverse@Append[Supers[class], class] // 
-	Apply@Join //
-	DeleteDuplicates;
-			
-ClearAll@getFinalFunctions;	
-g:getFinalFunctions[class_, newClass_]:= g =	
-	Replace[
-		UpValues[class]
-		, 
-		{
-			Verbatim[RuleDelayed][Verbatim[HoldPattern][Verbatim[Dot][classSpec_, function_[args___]]], rhs_] /; 
-				TrueQ[$FinalFunctions[{class, function}]] :> 
-					With[{newClassSpec = HoldComplete[classSpec] /. class -> newClass}, 
-						newClassSpec /. HoldComplete[nc_] :> RuleDelayed[HoldPattern[Dot[nc, function[args]]], rhs]
-					]
-			, 
-			(*BaseClass[object, ___] /; condition*)
-			Verbatim[RuleDelayed][Verbatim[HoldPattern][Verbatim[Condition][Verbatim[Dot][classSpec_, function_[args___]], cond_]], rhs_] /; 
-				TrueQ[$FinalFunctions[{class, function}]] :> 
-					With[{newClassSpec = HoldComplete[classSpec] /. class -> newClass}, 
-						newClassSpec /. HoldComplete[nc_] :> RuleDelayed[HoldPattern[Condition[Dot[nc, function[args]], cond]], rhs] 
-					]
-			, 
-			_  ->  Nothing
-		}
-		, 
-		{1}
-	];*)
 
 ClearAll@stringObjectFunctions;
 g:stringObjectFunctions[class_]:= g = SymbolName /@ objectFunctions[class];
@@ -1189,19 +1061,6 @@ BaseClass /: BaseClass[object_, ___].clearCacheFunction[class_, function_, cache
 			UpValues[class] = Append[UpValues[class], mainRepresentationRule];
 		];
 	];
-
-$baseClassFinalFunctions=
-	{set, clear, type, switchType, isType, data, flattenObject, objectQ, sameQ, initData, 
-	fieldExistsQ, get, deleteField, getFields, getFieldValues, fieldTake, addField, 
-	getStatic, setStatic, deleteStatic, deleteAllStatic, getSuperClass, getOption, 
-	clearList, clearAssociation, getKey, setKey, setKeyDelayed, deleteKey, renameKey, 
-	setKeys, getValues, lookup, keyTake, keySort, keyExistsQ, appendTo, prependTo, insertTo, prependJoin, 
-	appendJoin, setPart, getPart, isEmpty, deleteCases, position, deleteDuplicates, cases, selectField, thread, 
-	through, apply, excuteFunction, addToField, multiplyByField, increment, decrement, createHeldValue, 
-	setHeldValue, getHeldValue, deleteHeldValue, newTick, tickNotify, cacheFunction, staticCacheFunction, 
-	clearCacheFunction};
-
-SetFinalFunction[BaseClass, $baseClassFinalFunctions];
 (*
 xx=NewClass[]
 yy=NewClass["Parents" -> {xx}]

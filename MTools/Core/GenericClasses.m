@@ -142,7 +142,7 @@ GenericClass.removeFromAssociation[id_:"Symbol", assoc_:"Symbols"]:=
 	];
 SetAttributes[{iterate, iterateAssociation, upIterate}, HoldFirst];
 Options[iterate] = {"Condition" -> (True&), "CarryTreeResult" -> False, "Field" -> "Components", "ExternalIterate" -> False};
-Final@GenericClass.iterate[fun_, opts:OptionsPattern[iterate]]:= 
+GenericClass.iterate[fun_, opts:OptionsPattern[iterate]]:= 
 	Block[{iterationResult, condition, carryTreeResult, componentsList}, 
 		
 		condition = OptionValue[iterate, {opts}, "Condition"];
@@ -1200,7 +1200,7 @@ GenericGroup.componentsThread[fun_[otherArgs___, list_]]:= MapThread[#1.fun[othe
 superIterate::unknownTraversal = "`1` is an unknown TraversalOrder option.";
 SetAttributes[{superIterate, selfIterate}, HoldFirst];
 Options[superIterate] = Join[Options[iterate], {"SuperClass" -> Automatic, "TraversalOrder" -> "Prefix"(*or "Postfix"*)}];
-Final@GenericGroup.superIterate[fun_, opts:OptionsPattern[superIterate]]:= 
+GenericGroup.superIterate[fun_, opts:OptionsPattern[superIterate]]:= 
 	Block[{superClass, superResult, iterationResult, traversalOrder}, 
 
 		superClass = OptionValue[superIterate, {opts}, "SuperClass"];
