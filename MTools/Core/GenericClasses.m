@@ -142,7 +142,7 @@ GenericClass.removeFromAssociation[id_:"Symbol", assoc_:"Symbols"]:=
 	];
 SetAttributes[{iterate, iterateAssociation, upIterate}, HoldFirst];
 Options[iterate] = {"Condition" -> (True&), "CarryTreeResult" -> False, "Field" -> "Components", "ExternalIterate" -> False};
-Final@GenericClass.iterate[fun_, opts:OptionsPattern[iterate]]:= 
+GenericClass.iterate[fun_, opts:OptionsPattern[iterate]]:= 
 	Block[{iterationResult, condition, carryTreeResult, componentsList}, 
 		
 		condition = OptionValue[iterate, {opts}, "Condition"];
@@ -299,7 +299,7 @@ GenericClass.registerDisplayedProperties[properties_]:=
 		
 		o["DisplayedProperties"]
 	];
-(*we use this in order to not execute a sub implementation*)
+(*we use this in order to not execute a sub class implementation*)
 GenericClass.unregisterDisplayedProperties[propertiesType_]:= o.this.registerDisplayedProperties[{{propertiesType}}]; 
 GenericClass.registerDisplayedProperty[__]:=Null;
 GenericClass.unregisterDisplayedProperty[__]:=Null;
@@ -683,7 +683,7 @@ GenericClass.deleteDocFromJournal[id_]:=
 	];
 GenericClass.getJournalEntryField[id_, field_]:= o["Journal", id, field];
 GenericClass.getJournalEntryType[id_]:= o.getJournalEntryField[id, "ObjectType"];
-(*Note: don't overload definitions with a different number of arguments accross an inheritance tree,  or use sub in the super class*)
+(*Note: don't overload definitions with a different number of arguments accross an inheritance tree, or use sub in the super class*)
 GenericClass.getJournalEntry[id_]:= o.getJournalEntryContent[id, o.getJournalEntryType[id]];
 GenericClass.getJournalEntryContent[id_, "Comment"]:= o["Journal", id, "Comment"];
 GenericClass.getJournalIdField[id_, field_, "CouchDate"]:= o.getJournalIdField[id, field, "Default"]//FormatCouchDate;
@@ -1123,7 +1123,7 @@ GenericGroup.appendComponentToAssociation[newComponent_, opts:OptionsPattern[app
 		
 		o.deleteCases["Components", x_ /; x[idField] === fieldValue];
 		
-		(*we use this in order to not execute a sub implementation*)
+		(*we use this in order to not execute a sub class implementation*)
 		o.this.appendComponent[newComponent, OptionValue[appendComponentToAssociation, {opts}, "SetComponentIds"]];
 		
 		o.setKey[
@@ -1158,7 +1158,7 @@ GenericGroup.prependComponentToAssociation[newComponent_, opts:OptionsPattern[pr
 		
 		o.deleteCases["Components", x_ /; x[idField] === fieldValue];
 		
-		(*we use this in order to not execute a sub implementation*)
+		(*we use this in order to not execute a sub class implementation*)
 		o.this.prependComponent[newComponent, OptionValue[prependComponentToAssociation, {opts}, "SetComponentIds"]];
 		
 		o.setKey[
@@ -1200,7 +1200,7 @@ GenericGroup.componentsThread[fun_[otherArgs___, list_]]:= MapThread[#1.fun[othe
 superIterate::unknownTraversal = "`1` is an unknown TraversalOrder option.";
 SetAttributes[{superIterate, selfIterate}, HoldFirst];
 Options[superIterate] = Join[Options[iterate], {"SuperClass" -> Automatic, "TraversalOrder" -> "Prefix"(*or "Postfix"*)}];
-Final@GenericGroup.superIterate[fun_, opts:OptionsPattern[superIterate]]:= 
+GenericGroup.superIterate[fun_, opts:OptionsPattern[superIterate]]:= 
 	Block[{superClass, superResult, iterationResult, traversalOrder}, 
 
 		superClass = OptionValue[superIterate, {opts}, "SuperClass"];
