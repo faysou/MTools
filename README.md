@@ -35,19 +35,6 @@ More examples will be added in the MTools.nb notebook located in the MTools pack
 
 ## Installation
 
-### Automatic installation
-
-To install the MTools package evaluate:
-```Mathematica
-Get["https://raw.githubusercontent.com/faysou/MTools/master/BootstrapInstall.m"]
-```
-
-Note that this will also install the
-[ProjectInstaller](https://github.com/lshifr/ProjectInstaller)
-package, if you don't have it already installed.
-
-To load the MTools package evaluate: ``Needs["MTools`"]``.
-
 ### Manual installation
 
 1. Download the latest released
