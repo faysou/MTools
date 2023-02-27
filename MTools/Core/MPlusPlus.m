@@ -148,7 +148,7 @@ NewClass /: Set[class_Symbol, NewClass[opts:OptionsPattern[]]]:=
 			];
 			
 		initStaticAssociation[class];
-		Initialized[class] = False;
+		Initialized[class] ^= False;
 		
 		class
 	];
@@ -278,7 +278,7 @@ New[class_Symbol][opts___]:=
 		Global`object = Association[];
 		newObject = class[Global`object];
 		options = FilterRules[Flatten@{opts}, Options@class];
-		newObject.initData[options];	
+		newObject.initData[options];
 		
     	If[FunctionQ[#, "init"], 
     		newObject.super[#].init[options];
@@ -316,13 +316,12 @@ InitializeClass[class_]:=
 		
 		(*we clean the class from previously cached rules*)
 		UpValues[class] = 
-			Select[
+			DeleteCases[
 				UpValues[class]
 				, 
-				FreeQ[#[[1]], super] ||
-				!FreeQ[#[[1]], this] ||
-				(*for getitem rule*)
-				!FreeQ[#[[1]], Verbatim[Except[super|this, _Symbol|_String]]]& 
+				Verbatim[RuleDelayed][Verbatim[HoldPattern][Verbatim[Dot][_,Except[Pattern,_Symbol][___]]],_]
+				| Verbatim[RuleDelayed][Verbatim[HoldPattern][Verbatim[Dot][_,super,_[___]]],_]
+				| Verbatim[RuleDelayed][Verbatim[HoldPattern][Verbatim[Dot][_,super[_],_[___]]],_]
 			];
 		
 		If[!ValueQ@Supers[class], 
@@ -346,7 +345,7 @@ InitializeClass[class_]:=
 		
 		addSpecialRules[class, otherFunctions, nonObjectFunctions];
 		initStaticAssociation[class];
-		Initialized@class = True;
+		Initialized@class ^= True;
 	];
 
 patternSignature[rule_]:= First@rule //. {Verbatim[Pattern][_, x_]:>x, Verbatim[Optional][x_, _]:>x};
@@ -366,10 +365,10 @@ inheritNonObjectFunctions[class_]:=
 	];
 	
 appendToUpValues[symbol_, newRule_]:=
-	UpValues[symbol] = Append[DeleteCases[UpValues@symbol, Verbatim@newRule], newRule];
+	UpValues[symbol] = Append[UpValues@symbol, newRule] // Reverse // DeleteDuplicates // Reverse;
 	
 prependToUpValues[symbol_, newRule_]:= 
-	UpValues[symbol] = Prepend[DeleteCases[UpValues@symbol, Verbatim@newRule], newRule];
+	UpValues[symbol] = Prepend[UpValues@symbol, newRule] // DeleteDuplicates;
 	
 
 addSpecialRules[class_, otherFunctions_, nonObjectFunctions_]:=
@@ -378,22 +377,22 @@ addSpecialRules[class_, otherFunctions_, nonObjectFunctions_]:=
 			nonObjectFunctions,
 			(*Dot has flat attribute so any sequence can be matched for example x.super[c].g[3] will match to (x.super[c]).g[3] 
 			and x.super[c] goes to defineSub (we don't want this)*)
-			{HoldPattern[class[params___].(f:Except[super])[args___]] :> defineSub[class, {params}, f, {args}]}, 
+			{HoldPattern[class[params___Symbol].(f:Except[super, _Symbol])[args___]] :> defineSub[class, {params}, f, {args}]}, 
 			otherFunctions,
 			{
 				(*this allows to overload a subclass just for certain arguments, if arguments don't match the pattern matcher
 				for the defintion in this class, a super class will be called*)
-				HoldPattern[class[params___].this.f_Symbol[args___]] :> class[params].super.f[args]
+				HoldPattern[class[params___Symbol].this.f_Symbol[args___]] :> class[params].super.f[args]
 				,
 				(*http://mathematica.stackexchange.com/a/73017/66*)
 				(*so that when an object is returned as o for example, its main representation is returned*)
-				HoldPattern[(h:Except[Dot])[a___, class[object_, ___, specialRuleMainClass_], b___]] :> h[a, specialRuleMainClass[object], b]
+				HoldPattern[(h:Except[Dot])[a___, class[object_Symbol, ___, specialRuleMainClass_Symbol], b___]] :> h[a, specialRuleMainClass[object], b]
 			}
-		];
+		] // Reverse // DeleteDuplicates // Reverse;
 
 defineSub::noFct = "Class `1` doesn't have a sub class with member function `2`.";
 SetAttributes[defineSub, HoldAllComplete];
-defineSub[class_Symbol, {params___}, function_Symbol, {args___}] :=
+defineSub[class_, {params___}, function_, {args___}] :=
     Block[{subs, mainClass, classPosition, executedClass, resultFunction}, 
     	If[Length@{params} <= 1, 
     		subs = Flatten@{Supers[class], class};
@@ -453,7 +452,7 @@ zz=New[y][]
 zz.f[3]*)
 
 super::noFct = "Class `1` doesn't have as member function `2`.";
-super /: class_Symbol[params___].super.function_Symbol[args___]:=
+super /: class_Symbol[params___Symbol].super.function_Symbol[args___]:=
     Block[{supers, classPosition, mainClass, executedClass, resultFunction}, 
 		If[Length@{params} <= 1, 
     		supers = Supers[class];
@@ -507,8 +506,8 @@ super /: class_Symbol[params___].super.function_Symbol[args___]:=
   			class[params].super.function[args]
 		]
 	];
-	
-super /: class_Symbol[params___].super[superClass_].function_Symbol[args___]:=
+
+super /: class_Symbol[params___Symbol].super[superClass_Symbol].function_Symbol[args___]:=
     Block[{supers, classPosition, mainClass, executedClass, resultFunction}, 
 		If[Length@{params} <= 1, 
     		mainClass = class;
@@ -659,8 +658,8 @@ g:nonObjectRules[class_Symbol]:= g =
 			(*BaseClass[object, ___] /; condition*)
 			Verbatim[RuleDelayed][Verbatim[HoldPattern][Verbatim[Condition][Verbatim[Dot][_, this, _[___]], _]], _] | 
 			(*we exclude sepcial key words while still including the getItem rule, we also exclude all constants*)
-			(x_/; !FreeQ[x, this|super|specialRuleMainClass] && FreeQ[x, (*getItem*)Except[super|this, _Symbol|_String]] || 
-			FreeQ[x, Blank|BlankSequence|BlankNullSequence|OptionsPattern])
+			(x_ /; !FreeQ[x, this|super|specialRuleMainClass] && FreeQ[x, (*getItem*)Except[super|this, _Symbol|_String]]
+				  || FreeQ[x, Blank|BlankSequence|BlankNullSequence|OptionsPattern])
 		]
 	];
 

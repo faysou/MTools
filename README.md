@@ -1,6 +1,6 @@
 # MTools
 
-[![release v1.0.0](http://img.shields.io/badge/release-v1.0.0-blue.svg)](https://github.com/faysou/MTools/releases/latest)
+[![release v1.0.1](http://img.shields.io/badge/release-v1.0.1-blue.svg)](https://github.com/faysou/MTools/releases/latest)
 [![Semantic Versioning](https://img.shields.io/badge/SemVer-2.0.0-green.svg)](http://semver.org/spec/v2.0.0.html)
 [![license MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/faysou/MTools/blob/master/LICENSE)
 [![Mathematica 10.0](https://img.shields.io/badge/Mathematica-10+-green.svg)](#compatibility)
@@ -38,7 +38,7 @@ More examples will be added in the MTools.nb notebook located in the MTools pack
 ### Manual installation
 
 1. Download the latest released
-   [MTools.zip](https://github.com/faysou/MTools/releases/download/1.0.0/MTools.zip)
+   [MTools.zip](https://github.com/faysou/MTools/releases/download/1.0.1/MTools.zip)
    file.
 
 2. Extract the downloaded `MTools.zip` file to any directory which is on the
